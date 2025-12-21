@@ -1,6 +1,7 @@
 ﻿# Aetherweave.IdentityGenerators
 
-Distributed, high-performance ID generation using Twitter Snowflake algorithm for creating unique, sortable identifiers across multiple instances.
+Distributed, high-performance ID generation using Twitter Snowflake algorithm for creating unique, sortable identifiers
+across multiple instances.
 
 ## Features
 
@@ -23,6 +24,7 @@ dotnet add package Zwedze.Aetherweave.IdentityGenerators
 ### Snowflake ID Structure
 
 A 64-bit ID is composed of:
+
 ```
 ┌─────────────┬──────────┬────────────┐
 │  Timestamp  │ Instance │  Sequence  │
@@ -31,6 +33,7 @@ A 64-bit ID is composed of:
 ```
 
 **Benefits:**
+
 - **Timestamp** - IDs are sortable by creation time
 - **Instance ID** - Supports distributed systems (1024 instances with MachineName)
 - **Sequence** - Multiple IDs per millisecond (4096 IDs/ms per instance)
@@ -40,6 +43,7 @@ A 64-bit ID is composed of:
 ### 1. Register the Generator
 
 **Program.cs:**
+
 ```csharp
 services.AddAetherweaveGenerators(options =>
 {
@@ -100,15 +104,18 @@ services.AddAetherweaveGenerators(options =>
 ```
 
 **Requirements:**
+
 - Machine name must end with a number (e.g., `WEBSERVER01`, `API-PROD-03`)
 - Supports up to **1,024 instances** (10 bits)
 
 **Examples:**
+
 - `WEBSERVER01` → Instance ID: 1
 - `API-PROD-123` → Instance ID: 123
 - `LNXSRV03` → Instance ID: 3
 
 **ID Structure:**
+
 ```
 41 bits (timestamp) + 10 bits (instance) + 12 bits (sequence)
 = Up to 1,024 instances
@@ -127,15 +134,18 @@ services.AddAetherweaveGenerators(options =>
 ```
 
 **How it works:**
+
 - Uses last two octets of IPv4 address
 - Supports up to **65,536 instances** (16 bits)
 
 **Examples:**
+
 - `192.168.1.1` → Instance ID: 257 (binary: 00000001 00000001)
 - `10.0.15.30` → Instance ID: 3870 (binary: 00001111 00011110)
 - `172.16.0.100` → Instance ID: 100
 
 **ID Structure:**
+
 ```
 41 bits (timestamp) + 16 bits (instance) + 6 bits (sequence)
 = Up to 65,536 instances
@@ -155,12 +165,14 @@ services.AddAetherweaveGenerators(options =>
 ```
 
 **Why Custom Epoch?**
+
 - Default epoch (2019-01-01) gives ~69 years until overflow
 - Custom recent epoch maximizes available time
 - **Set epoch to your application's launch date**
 
 **Lifespan Calculation:**
 With 41 bits for timestamp:
+
 - Maximum milliseconds: 2^41 = 2,199,023,255,552 ms
 - Years: ~69.73 years from epoch
 
@@ -200,6 +212,7 @@ var uid = identityGenerator.GetNextUid();
 ```
 
 **Use when:**
+
 - Need raw long values
 - Storing in non-Entity Framework contexts
 - Interoperating with systems expecting long IDs
@@ -217,6 +230,7 @@ var customerId = identityGenerator.CreateId<Customer>();
 ```
 
 **Use for:**
+
 - Entity primary keys
 - Database IDs
 - Technical identifiers
@@ -231,12 +245,14 @@ var orderCode = identityGenerator.CreateCode<Order>();
 ```
 
 **Use for:**
+
 - Order numbers
 - Invoice numbers
 - Reference codes
 - Business identifiers visible to users
 
 **Why UUID v7?**
+
 - Time-ordered (sortable)
 - Globally unique without coordination
 - URL-safe string representation
@@ -449,12 +465,14 @@ public class ApplicationService(IIdentityGenerator identityGenerator)
 ### InstanceIdConversionFromMachineNameErrorException
 
 **Error:**
+
 ```
 The current machine name (WEBSERVER) is not in the format of <NAME><NUMBER>.
 ```
 
 **Solution:**
 Ensure machine names end with numbers:
+
 ```bash
 # Windows
 Rename-Computer -NewName "WEBSERVER01"
@@ -464,6 +482,7 @@ hostnamectl set-hostname LNXSRV01
 ```
 
 Or use IP strategy instead:
+
 ```csharp
 options.InstanceIdType = InstanceIdType.Ip;
 ```
@@ -471,11 +490,13 @@ options.InstanceIdType = InstanceIdType.Ip;
 ### UidGeneratorNoIpException
 
 **Error:**
+
 ```
 No network adapters with an IPv4 address in the system!
 ```
 
 **Solution:**
+
 - Verify network connectivity
 - Check firewall settings
 - Use MachineName strategy instead:
@@ -493,6 +514,7 @@ _retryPolicy = Policy.Handle<InvalidSystemClockException>().RetryForever();
 ```
 
 **Prevention:**
+
 - Use NTP time synchronization
 - Enable Windows Time Service
 - Configure chrony/ntpd on Linux
@@ -502,11 +524,13 @@ _retryPolicy = Policy.Handle<InvalidSystemClockException>().RetryForever();
 ### Instance ID Limits
 
 **MachineName Strategy:**
+
 - Maximum: 1,024 instances (2^10)
 - Instance IDs: 0-1023
 - Best for: Most applications
 
 **IP Strategy:**
+
 - Maximum: 65,536 instances (2^16)
 - Instance IDs: 0-65,535
 - Best for: Very large deployments
@@ -518,6 +542,7 @@ _retryPolicy = Policy.Handle<InvalidSystemClockException>().RetryForever();
 **Why:** IDs from different instances must maintain global ordering.
 
 **Setup NTP:**
+
 ```bash
 # Ubuntu/Debian
 sudo apt-get install ntp
@@ -561,6 +586,7 @@ public class Order
 ```
 
 **Problems:**
+
 - ❌ Can't know ID before insert
 - ❌ Doesn't work across databases
 - ❌ Race conditions in distributed systems
@@ -580,6 +606,7 @@ public class Order : AggregateRoot<Order>
 ```
 
 **Benefits:**
+
 - ✅ Know ID before insert
 - ✅ Works across multiple databases
 - ✅ No coordination needed

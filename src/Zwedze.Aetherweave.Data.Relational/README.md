@@ -416,8 +416,11 @@ public class OrderService(
    await eventDispatcher.DispatchAsync(aggregate, ct);
    ```
 
-3. **Use no-tracking for read-only queries:**  
-> The framework will automatically apply `AsNoTracking()` to all queries by default unless you explicitly disable it in the options.
+3. **Use no-tracking for read-only queries:**
+
+> The framework will automatically apply `AsNoTracking()` to all queries by default unless you explicitly disable it in
+> the options.
+
    ```csharp
    var orders = await dbContext.Orders
        .AsNoTracking()  // Read-only performance boost

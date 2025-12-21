@@ -12,10 +12,12 @@
         <IsPackable>true</IsPackable>
         <Description>Core Domain-Driven Design (DDD) primitives for Aetherweave, including type-safe IDs, aggregate roots, and domain event abstractions.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false" />
+        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false"/>
+        <None Include="README.md" Pack="true" PackagePath=""/>
     </ItemGroup>
 
     <ItemGroup>

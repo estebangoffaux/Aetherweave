@@ -19,10 +19,11 @@
         <IsPackable>true</IsPackable>
         <Description>Roslyn-based analyzers for Aetherweave that enforce uniqueness constraints on 'Id' and 'Code' properties within classes and records at compile-time.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false" />
+        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false"/>
     </ItemGroup>
 
     <ItemGroup>

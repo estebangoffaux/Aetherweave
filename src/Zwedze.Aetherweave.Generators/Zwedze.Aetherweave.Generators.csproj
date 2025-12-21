@@ -19,10 +19,11 @@
         <IsPackable>true</IsPackable>
         <Description>Source generators for Aetherweave that automate the creation of 'AllKnown' collections and 'FromCode' mapping methods for static-member-based classes and records.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false" />
+        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false"/>
     </ItemGroup>
 
     <ItemGroup>
