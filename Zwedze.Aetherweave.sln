@@ -39,6 +39,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FunctionalProgramming", "Fu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zwedze.Aetherweave.Http", "src\Zwedze.Aetherweave.Http\Zwedze.Aetherweave.Http.csproj", "{B590C62E-138F-45E0-BAE1-61F7EEC768FC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zwedze.Aetherweave.Generators.Test", "tests\Zwedze.Aetherweave.Generators.Test\Zwedze.Aetherweave.Generators.Test.csproj", "{41D91881-BB2B-4F9A-B999-892246E92672}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -81,6 +83,10 @@ Global
 		{B590C62E-138F-45E0-BAE1-61F7EEC768FC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B590C62E-138F-45E0-BAE1-61F7EEC768FC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B590C62E-138F-45E0-BAE1-61F7EEC768FC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{41D91881-BB2B-4F9A-B999-892246E92672}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{41D91881-BB2B-4F9A-B999-892246E92672}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{41D91881-BB2B-4F9A-B999-892246E92672}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{41D91881-BB2B-4F9A-B999-892246E92672}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{81D98CF7-40CD-4A94-B135-C542EB69F90C} = {F92CD221-C754-455E-B348-7ED59B746C3F}
@@ -92,5 +98,6 @@ Global
 		{99B1262D-5DB5-46CB-935E-D8D25F06B5F0} = {B124E775-FA63-4ED2-93B2-CCD73B794759}
 		{B2A5C4D3-B900-4B3F-B47B-2B8A7BE48CEA} = {58BF3175-22C7-46A1-9319-8DBC01667B16}
 		{B590C62E-138F-45E0-BAE1-61F7EEC768FC} = {6271BD8E-EB42-4699-AB2A-63657051F795}
+		{41D91881-BB2B-4F9A-B999-892246E92672} = {D1F98E61-1784-4B38-A948-FADA48F0490E}
 	EndGlobalSection
 EndGlobal
