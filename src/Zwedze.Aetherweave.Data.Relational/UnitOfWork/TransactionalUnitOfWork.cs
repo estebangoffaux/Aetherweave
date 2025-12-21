@@ -52,9 +52,8 @@ internal sealed class TransactionalUnitOfWork(
 
         if (_transaction is not null && !_transactionCommitted)
         {
-            _logger.LogWarning(
-                "Transaction was not committed and will be rolled back. " +
-                "Call Commit() explicitly to persist changes.");
+            _logger.LogWarning("Transaction was not committed and will be rolled back. " +
+                               "Call Commit() explicitly to persist changes.");
             _transaction.Rollback();
         }
 
@@ -71,9 +70,8 @@ internal sealed class TransactionalUnitOfWork(
 
         if (_transaction is not null && !_transactionCommitted)
         {
-            _logger.LogWarning(
-                "Transaction was not committed and will be rolled back. " +
-                "Call Commit() explicitly to persist changes.");
+            _logger.LogWarning("Transaction was not committed and will be rolled back. " +
+                               "Call Commit() explicitly to persist changes.");
             await _transaction.RollbackAsync();
         }
 

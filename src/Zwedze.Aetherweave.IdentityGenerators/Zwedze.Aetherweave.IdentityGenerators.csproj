@@ -12,10 +12,12 @@
         <IsPackable>true</IsPackable>
         <Description>Distributed Snowflake-based identity generation for Aetherweave, providing type-safe, sortable, and high-performance identifiers for multi-instance environments.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false" />
+        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false"/>
+        <None Include="README.md" Pack="true" PackagePath=""/>
     </ItemGroup>
 
     <ItemGroup>
@@ -41,6 +43,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Zwedze.Aetherweave.SharedKernel\Zwedze.Aetherweave.SharedKernel.csproj" />
+        <ProjectReference Include="..\Zwedze.Aetherweave.SharedKernel\Zwedze.Aetherweave.SharedKernel.csproj"/>
     </ItemGroup>
 </Project>

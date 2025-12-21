@@ -1,37 +1,48 @@
 # Aetherweave
 
-A pragmatic framework for building clean, maintainable .NET applications using Domain-Driven Design and functional programming patterns.
+A pragmatic framework for building clean, maintainable .NET applications using Domain-Driven Design and functional
+programming patterns.
 
 ## Philosophy
 
-Modern software development demands clarity and maintainability. Aetherweave provides the building blocks you need without imposing unnecessary ceremony or complexity. Each package solves a specific problem and integrates seamlessly with the others.
+Modern software development demands clarity and maintainability. Aetherweave provides the building blocks you need
+without imposing unnecessary ceremony or complexity. Each package solves a specific problem and integrates seamlessly
+with the others.
 
 ## Packages
 
 ### Core Building Blocks
 
 #### [Aetherweave.SharedKernel](src/Zwedze.Aetherweave.SharedKernel/README.md)
-The foundation. Type-safe value objects (`Id<T>`, `Code<T>`), aggregate roots, domain events, and business exceptions. If you're doing DDD, start here.
+
+The foundation. Type-safe value objects (`Id<T>`, `Code<T>`), aggregate roots, domain events, and business exceptions.
+If you're doing DDD, start here.
 
 **Key Features:**
+
 - Type-safe entity identifiers that prevent mixing IDs across entities
 - Aggregate root base class with built-in domain event support
 - Business exception infrastructure for domain errors
 - Value object primitives for natural keys and codes
 
 #### [Aetherweave.Application](src/Zwedze.Aetherweave.Application/README.md)
-CQRS interfaces, domain event dispatching, and result patterns. The application layer that orchestrates your domain logic.
+
+CQRS interfaces, domain event dispatching, and result patterns. The application layer that orchestrates your domain
+logic.
 
 **Key Features:**
+
 - Command and Query handler abstractions
 - Fluent domain event dispatcher with multi-handler support
 - ResponseWrapper for type-safe success/failure responses
 - Error factory for consistent error handling
 
 #### [Aetherweave.FunctionalProgramming](src/Zwedze.Aetherweave.FunctionalProgramming/README.md)
+
 Railway-oriented programming for .NET. Chain operations that can fail elegantly without drowning in try-catch blocks.
 
 **Key Features:**
+
 - Result&lt;T&gt; for type-safe error handling
 - Map, Bind, and Match for composable operations
 - Async-first with comprehensive async support
@@ -40,27 +51,34 @@ Railway-oriented programming for .NET. Chain operations that can fail elegantly 
 ### Infrastructure & Integration
 
 #### [Aetherweave.Data.Relational](src/Zwedze.Aetherweave.Data.Relational/Zwedze.Aetherweave.Data.Relational.csproj)
+
 Clean EF Core wrapper with Unit of Work pattern. Transactional integrity without the boilerplate.
 
 **Key Features:**
+
 - Transactional and non-transactional unit of work support
 - Configuration-based DbContext setup from appsettings
 - Auto-starting transactions (no manual BeginTransaction needed)
 - Built-in health checks for production monitoring
 
 #### [Aetherweave.Http](src/Zwedze.Aetherweave.Http/README.md)
+
 Type-safe HttpClient configuration with built-in profiling, content tracing, and error handling.
 
 **Key Features:**
+
 - Configuration-based HttpClient setup from appsettings
 - Automatic request profiling and performance tracking
 - Content tracing for debugging
 - Chainable handler API and custom error handling
 
 #### [Aetherweave.IdentityGenerators](src/Zwedze.Aetherweave.IdentityGenerators/README.md)
-Distributed ID generation using Twitter's Snowflake algorithm. Generate unique, sortable identifiers across multiple instances.
+
+Distributed ID generation using Twitter's Snowflake algorithm. Generate unique, sortable identifiers across multiple
+instances.
 
 **Key Features:**
+
 - 64-bit distributed unique identifiers
 - Direct support for `Id<T>` and `Code<T>` from SharedKernel
 - Multi-instance support with machine name or IP-based identification
@@ -296,6 +314,7 @@ public class OrderService(
 ## When to Use Aetherweave
 
 **Good Fit:**
+
 - Domain-rich applications where business logic complexity justifies DDD
 - Distributed systems needing unique ID generation across instances
 - Teams valuing type safety and compile-time guarantees
@@ -303,6 +322,7 @@ public class OrderService(
 - Projects where maintainability is a priority
 
 **Might Be Overkill:**
+
 - Simple CRUD applications with minimal business logic
 - Prototypes or throwaway code
 - Very small teams unfamiliar with DDD concepts

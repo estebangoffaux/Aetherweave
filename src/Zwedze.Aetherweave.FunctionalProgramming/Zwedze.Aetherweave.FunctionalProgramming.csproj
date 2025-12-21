@@ -12,10 +12,12 @@
         <IsPackable>true</IsPackable>
         <Description>Functional programming primitives for Aetherweave, providing a Result pattern and railway-oriented programming tools for type-safe error handling.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false" />
+        <None Include="..\..\Icon.png" Pack="true" PackagePath="Icon.png" Visible="false"/>
+        <None Include="README.md" Pack="true" PackagePath=""/>
     </ItemGroup>
 
     <ItemGroup>

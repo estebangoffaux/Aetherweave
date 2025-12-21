@@ -45,6 +45,7 @@ var invoiceCode = Code<Invoice>.From("INV-2024-12345");
 ```
 
 **Benefits:**
+
 - ✅ Compile-time type safety
 - ✅ No mixing IDs from different entities
 - ✅ Clear intent in code
