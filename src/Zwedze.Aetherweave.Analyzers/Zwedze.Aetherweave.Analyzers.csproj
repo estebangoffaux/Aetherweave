@@ -19,7 +19,6 @@
         <IsPackable>true</IsPackable>
         <Description>Roslyn-based analyzers for Aetherweave that enforce uniqueness constraints on 'Id' and 'Code' properties within classes and records at compile-time.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
