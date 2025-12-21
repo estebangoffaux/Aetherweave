@@ -12,7 +12,6 @@
         <IsPackable>true</IsPackable>
         <Description>Data persistence abstractions for Aetherweave, providing core interfaces for the Unit of Work and Transactional Unit of Work patterns.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>

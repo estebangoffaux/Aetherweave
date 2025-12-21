@@ -19,7 +19,6 @@
         <IsPackable>true</IsPackable>
         <Description>Source generators for Aetherweave that automate the creation of 'AllKnown' collections and 'FromCode' mapping methods for static-member-based classes and records.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
