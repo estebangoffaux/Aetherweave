@@ -4,9 +4,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_solutionItems", "_solution
 	ProjectSection(SolutionItems) = preProject
 		Icon.png = Icon.png
 		README.md = README.md
-		gitversion.yml = gitversion.yml
+		GitVersion.yml = GitVersion.yml
 		.editorconfig = .editorconfig
-		build-and-pack.yaml = build-and-pack.yaml
+		.github\workflows\build-and-pack.yaml = .github\workflows\build-and-pack.yaml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Data", "Data", "{F92CD221-C754-455E-B348-7ED59B746C3F}"
