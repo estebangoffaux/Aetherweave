@@ -132,13 +132,13 @@ public sealed class SmartEnumAttribute() : System.Attribute;
         {
             sb.AppendLine($"    private {typeName}(string code)");
             sb.AppendLine("    {");
-            sb.AppendLine($"        Code = Code<{typeName}>.From(code);");
+            sb.AppendLine($"        Code = Zwedze.Aetherweave.SharedKernel.Code<{typeName}>.From(code);");
             sb.AppendLine("    }");
         }
 
         void AppendProperties()
         {
-            sb.AppendLine($"    public Code<{typeName}> Code {{ get; }}");
+            sb.AppendLine($"    public Zwedze.Aetherweave.SharedKernel.Code<{typeName}> Code {{ get; }}");
         }
 
         void AppendFromCodeMethods()
