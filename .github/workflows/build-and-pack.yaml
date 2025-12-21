@@ -45,9 +45,9 @@ jobs:
 
       - name: Pack
         run: |
-          dotnet pack -c Release --no-build \
+          find src -name "*.csproj" -exec dotnet pack {} -c Release --no-build \
             /p:Version=${{ env.GitVersion_SemVer }} \
-            -o ./artifacts
+            -o ./artifacts \;
 
       - name: Push to GitHub Packages
         run: |
