@@ -18,7 +18,7 @@ public readonly struct Id<T> : IEquatable<Id<T>>
         _value = value;
     }
 
-    public static explicit operator long(Id<T> id)
+    public static implicit operator long(Id<T> id)
     {
         return id._value;
     }

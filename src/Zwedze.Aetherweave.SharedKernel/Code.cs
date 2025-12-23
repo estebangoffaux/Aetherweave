@@ -18,7 +18,7 @@ public readonly struct Code<T> : IEquatable<Code<T>>
         _value = value;
     }
 
-    public static explicit operator string(Code<T> id)
+    public static implicit operator string(Code<T> id)
     {
         return id._value;
     }

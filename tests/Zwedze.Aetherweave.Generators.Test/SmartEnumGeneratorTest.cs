@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using AwesomeAssertions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
