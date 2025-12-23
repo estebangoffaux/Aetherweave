@@ -8,7 +8,7 @@ namespace Zwedze.Aetherweave.Application.Extensions;
 
 public static class DomainEventDispatcherExtensions
 {
-    public static IServiceCollection AddDomainEventDispatcher(this IServiceCollection services, Action<DomainEventHandlerRegistry> configure)
+    public static IServiceCollection AddAetherweaveDomainEventDispatcher(this IServiceCollection services, Action<DomainEventHandlerRegistry> configure)
     {
         var registry = new DomainEventHandlerRegistry();
         configure(registry);
