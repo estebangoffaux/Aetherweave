@@ -35,10 +35,6 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // Register handlers
-        services.AddTransient<ProfilingHandler>();
-        services.AddTransient<ContentTracingHandler>();
-
         // Configure HttpClient
         var builder = services.AddHttpClient<TClient, TImplementation>(
             clientName,
