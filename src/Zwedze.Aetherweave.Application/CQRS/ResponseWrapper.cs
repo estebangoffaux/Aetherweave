@@ -10,18 +10,6 @@ public abstract record ResponseWrapper<T>
     }
 
     [UsedImplicitly]
-    public static ResponseWrapper<T> Ok(T value)
-    {
-        return new Success(value);
-    }
-
-    [UsedImplicitly]
-    public static ResponseWrapper<T> Fail(Error error)
-    {
-        return new Failure(error);
-    }
-
-    [UsedImplicitly]
     public sealed record Success(T Value) : ResponseWrapper<T>;
 
     [UsedImplicitly]
@@ -41,11 +29,24 @@ public abstract record ResponseWrapper
     }
 
     [UsedImplicitly]
+    public static ResponseWrapper<T> Ok<T>(T value)
+    {
+        return new ResponseWrapper<T>.Success(value);
+    }
+
+    [UsedImplicitly]
     public static ResponseWrapper Fail(Error error)
     {
         return new Failure(error);
     }
 
+    [UsedImplicitly]
+    public static ResponseWrapper<T> Fail<T>(Error error)
+    {
+        return new ResponseWrapper<T>.Failure(error);
+    }
+
+    [UsedImplicitly]
     public sealed record Success : ResponseWrapper;
 
     [UsedImplicitly]

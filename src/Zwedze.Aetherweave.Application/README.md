@@ -5,11 +5,11 @@ applications.
 
 ## Features
 
-- ✨ **Domain Event Dispatcher** - Fluent API for registering and dispatching domain events
-- 🎯 **CQRS Interfaces** - Command and Query handler abstractions
-- 🔄 **Result Pattern** - Type-safe success/failure responses with discriminated unions
-- 🛡️ **Error Handling** - Standardized error creation from exceptions
-- 🧩 **DI Integration** - First-class support for dependency injection
+- **Domain Event Dispatcher** - Fluent API for registering and dispatching domain events
+- **CQRS Interfaces** - Command and Query handler abstractions
+- **Result Pattern** - Type-safe success/failure responses with discriminated unions
+- **Error Handling** - Standardized error creation from exceptions
+- **DI Integration** - First-class support for dependency injection
 
 ## Installation
 
@@ -31,7 +31,7 @@ public record OrderShippedEvent(Guid OrderId, string TrackingNumber) : DomainEve
 **Create handlers:**
 
 ```csharp
-public class OrderCreatedEmailHandler(IEmailService emailService) : IDomainEventHandler<OrderCreatedEvent>
+public sealed class OrderCreatedEmailHandler(IEmailService emailService) : IDomainEventHandler<OrderCreatedEvent>
 {
     public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
     {
@@ -39,7 +39,7 @@ public class OrderCreatedEmailHandler(IEmailService emailService) : IDomainEvent
     }
 }
 
-public class OrderCreatedSmsHandler(ISmsService smsService) : IDomainEventHandler<OrderCreatedEvent>
+public sealed class OrderCreatedSmsHandler(ISmsService smsService) : IDomainEventHandler<OrderCreatedEvent>
 {
     public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
     {
@@ -51,7 +51,7 @@ public class OrderCreatedSmsHandler(ISmsService smsService) : IDomainEventHandle
 **Register with beautiful fluent API:**
 
 ```csharp
-services.AddDomainEventDispatcher(registry =>
+services.AddAetherweaveDomainEventDispatcher(registry =>
 {
     // Multiple handlers for the same event
     registry.Configure<OrderCreatedEvent>()
@@ -72,7 +72,7 @@ services.AddDomainEventDispatcher(registry =>
 **Dispatch events from aggregates:**
 
 ```csharp
-public class OrderService(
+public sealed class OrderService(
     IUnitOfWorkFactory uowFactory,
     IDomainEventDispatcher eventDispatcher)
 {
@@ -99,7 +99,7 @@ public class OrderService(
 ```csharp
 public record CreateOrderCommand(Guid CustomerId, List<OrderItem> Items);
 
-public class CreateOrderHandler(
+public sealed class CreateOrderHandler(
     IOrderRepository orderRepository,
     IUnitOfWorkFactory uowFactory) : ICommandHandler<CreateOrderCommand, Guid>
 {
@@ -117,12 +117,12 @@ public class CreateOrderHandler(
             await uow.SaveChanges(cancellationToken);
             await uow.Commit(cancellationToken);
             
-            return ResponseWrapper<Guid>.Ok(order.Id);
+            return ResponseWrapper.Ok(order.Id);
         }
         catch (BusinessException ex)
         {
             var error = ErrorFactory.Create(ex);
-            return ResponseWrapper<Guid>.Fail(error);
+            return ResponseWrapper.Fail<Guid>(error);
         }
     }
 }
@@ -133,7 +133,7 @@ public class CreateOrderHandler(
 ```csharp
 [ApiController]
 [Route("api/orders")]
-public class OrdersController(ICommandHandler<CreateOrderCommand, Guid> createOrderHandler) : ControllerBase
+public sealed class OrdersController(ICommandHandler<CreateOrderCommand, Guid> createOrderHandler) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderCommand command)
@@ -157,7 +157,7 @@ public class OrdersController(ICommandHandler<CreateOrderCommand, Guid> createOr
 ```csharp
 public record GetOrderByIdQuery(Guid OrderId);
 
-public class GetOrderByIdHandler(IOrderRepository orderRepository) : IQueryHandler<GetOrderByIdQuery, OrderDto>
+public sealed class GetOrderByIdHandler(IOrderRepository orderRepository) : IQueryHandler<GetOrderByIdQuery, OrderDto>
 {
     public async Task<ResponseWrapper<OrderDto>> Handle(
         GetOrderByIdQuery request, 
@@ -168,11 +168,11 @@ public class GetOrderByIdHandler(IOrderRepository orderRepository) : IQueryHandl
         if (order is null)
         {
             var error = ErrorFactory.Create("ORDER_NOT_FOUND", "Order not found");
-            return ResponseWrapper<OrderDto>.Fail(error);
+            return ResponseWrapper.Fail<OrderDto>(error);
         }
 
         var dto = MapToDto(order);
-        return ResponseWrapper<OrderDto>.Ok(dto);
+        return ResponseWrapper.Ok(dto);
     }
     
     private static OrderDto MapToDto(Order order) => new(order.Id, order.Total);
@@ -182,13 +182,13 @@ public class GetOrderByIdHandler(IOrderRepository orderRepository) : IQueryHandl
 **Parameterless query:**
 
 ```csharp
-public class GetAllOrdersHandler(IOrderRepository orderRepository) : IQueryHandler<List<OrderDto>>
+public sealed class GetAllOrdersHandler(IOrderRepository orderRepository) : IQueryHandler<IReadOnlyCollection<OrderDto>>
 {
-    public async Task<ResponseWrapper<List<OrderDto>>> Handle(CancellationToken cancellationToken)
+    public async Task<ResponseWrapper<IReadOnlyCollection<OrderDto>>> Handle(CancellationToken cancellationToken)
     {
         var orders = await orderRepository.GetAllAsync(cancellationToken);
         var dtos = orders.Select(o => new OrderDto(o.Id, o.Total)).ToList();
-        return ResponseWrapper<List<OrderDto>>.Ok(dtos);
+        return ResponseWrapper.Ok<IReadOnlyCollection<OrderDto>>(dtos);
     }
 }
 ```
@@ -200,6 +200,7 @@ public class GetAllOrdersHandler(IOrderRepository orderRepository) : IQueryHandl
 The dispatcher collects all exceptions and throws an `AggregateException` if any handler fails. This ensures all
 handlers run (eventual consistency):
 
+> it is highly recommended to always wrap the dispatch in a try/catch block to avoid missing exceptions.
 ```csharp
 try
 {
@@ -214,28 +215,29 @@ catch (AggregateException ex)
 }
 ```
 
-### ResponseWrapper Pattern Matching
+### ResponseWrapper Factory Methods and Pattern Matching
+
+Use the static factory methods on the non-generic `ResponseWrapper` class, then pattern-match on the public nested records:
+
+```csharp
+// Void (no return value)
+ResponseWrapper.Ok()            // success
+ResponseWrapper.Fail(error)     // failure
+
+// With a value
+ResponseWrapper.Ok(myValue)     // ResponseWrapper<T> success - type inferred
+ResponseWrapper.Fail<T>(error)  // ResponseWrapper<T> failure - explicit type arg required
+```
 
 ```csharp
 var result = await handler.Handle(command);
 
-// Pattern matching
 return result switch
 {
     ResponseWrapper<Order>.Success success => Ok(success.Value),
     ResponseWrapper<Order>.Failure failure => BadRequest(failure.Error),
-    _ => throw new InvalidOperationException()
+    _ => StatusCode(500)
 };
-
-// Or check manually
-if (result is ResponseWrapper<Order>.Success success)
-{
-    return Ok(success.Value);
-}
-else if (result is ResponseWrapper<Order>.Failure failure)
-{
-    return BadRequest(failure.Error);
-}
 ```
 
 ### Error Factory
