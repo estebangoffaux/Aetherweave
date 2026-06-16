@@ -5,11 +5,11 @@ applications.
 
 ## Features
 
-- ✨ **Domain Event Dispatcher** - Fluent API for registering and dispatching domain events
-- 🎯 **CQRS Interfaces** - Command and Query handler abstractions
-- 🔄 **Result Pattern** - Type-safe success/failure responses with discriminated unions
-- 🛡️ **Error Handling** - Standardized error creation from exceptions
-- 🧩 **DI Integration** - First-class support for dependency injection
+- **Domain Event Dispatcher** - Fluent API for registering and dispatching domain events
+- **CQRS Interfaces** - Command and Query handler abstractions
+- **Result Pattern** - Type-safe success/failure responses with discriminated unions
+- **Error Handling** - Standardized error creation from exceptions
+- **DI Integration** - First-class support for dependency injection
 
 ## Installation
 
@@ -31,7 +31,7 @@ public record OrderShippedEvent(Guid OrderId, string TrackingNumber) : DomainEve
 **Create handlers:**
 
 ```csharp
-public class OrderCreatedEmailHandler(IEmailService emailService) : IDomainEventHandler<OrderCreatedEvent>
+public sealed class OrderCreatedEmailHandler(IEmailService emailService) : IDomainEventHandler<OrderCreatedEvent>
 {
     public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
     {
@@ -39,7 +39,7 @@ public class OrderCreatedEmailHandler(IEmailService emailService) : IDomainEvent
     }
 }
 
-public class OrderCreatedSmsHandler(ISmsService smsService) : IDomainEventHandler<OrderCreatedEvent>
+public sealed class OrderCreatedSmsHandler(ISmsService smsService) : IDomainEventHandler<OrderCreatedEvent>
 {
     public async Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
     {
@@ -72,7 +72,7 @@ services.AddAetherweaveDomainEventDispatcher(registry =>
 **Dispatch events from aggregates:**
 
 ```csharp
-public class OrderService(
+public sealed class OrderService(
     IUnitOfWorkFactory uowFactory,
     IDomainEventDispatcher eventDispatcher)
 {
@@ -99,7 +99,7 @@ public class OrderService(
 ```csharp
 public record CreateOrderCommand(Guid CustomerId, List<OrderItem> Items);
 
-public class CreateOrderHandler(
+public sealed class CreateOrderHandler(
     IOrderRepository orderRepository,
     IUnitOfWorkFactory uowFactory) : ICommandHandler<CreateOrderCommand, Guid>
 {
@@ -133,7 +133,7 @@ public class CreateOrderHandler(
 ```csharp
 [ApiController]
 [Route("api/orders")]
-public class OrdersController(ICommandHandler<CreateOrderCommand, Guid> createOrderHandler) : ControllerBase
+public sealed class OrdersController(ICommandHandler<CreateOrderCommand, Guid> createOrderHandler) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> CreateOrder([FromBody] CreateOrderCommand command)
@@ -157,7 +157,7 @@ public class OrdersController(ICommandHandler<CreateOrderCommand, Guid> createOr
 ```csharp
 public record GetOrderByIdQuery(Guid OrderId);
 
-public class GetOrderByIdHandler(IOrderRepository orderRepository) : IQueryHandler<GetOrderByIdQuery, OrderDto>
+public sealed class GetOrderByIdHandler(IOrderRepository orderRepository) : IQueryHandler<GetOrderByIdQuery, OrderDto>
 {
     public async Task<ResponseWrapper<OrderDto>> Handle(
         GetOrderByIdQuery request, 
@@ -182,7 +182,7 @@ public class GetOrderByIdHandler(IOrderRepository orderRepository) : IQueryHandl
 **Parameterless query:**
 
 ```csharp
-public class GetAllOrdersHandler(IOrderRepository orderRepository) : IQueryHandler<IReadOnlyCollection<OrderDto>>
+public sealed class GetAllOrdersHandler(IOrderRepository orderRepository) : IQueryHandler<IReadOnlyCollection<OrderDto>>
 {
     public async Task<ResponseWrapper<IReadOnlyCollection<OrderDto>>> Handle(CancellationToken cancellationToken)
     {
@@ -225,8 +225,8 @@ ResponseWrapper.Ok()            // success
 ResponseWrapper.Fail(error)     // failure
 
 // With a value
-ResponseWrapper.Ok(myValue)     // ResponseWrapper<T> success — type inferred
-ResponseWrapper.Fail<T>(error)  // ResponseWrapper<T> failure — explicit type arg required
+ResponseWrapper.Ok(myValue)     // ResponseWrapper<T> success - type inferred
+ResponseWrapper.Fail<T>(error)  // ResponseWrapper<T> failure - explicit type arg required
 ```
 
 ```csharp

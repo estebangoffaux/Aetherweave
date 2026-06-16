@@ -1,14 +1,14 @@
 # Aetherweave.Generators
 
-C# source generator that eliminates smart-enum boilerplate — classes whose instances are declared as static fields and identified by a `Code<T>`.
+C# source generator that eliminates smart-enum boilerplate. Classes whose instances are declared as static fields and identified by a `Code<T>`.
 
 ## Features
 
-- **`[SmartEnum]` attribute** — opt-in marker injected into the consuming project at build time
-- **`Code<T>` property** — typed business code for each instance
-- **`FromCode(Code<T>)`** — look up an instance by its typed code; throws `ArgumentException` for unknown values
-- **`FromCode(string)`** — convenience overload that wraps the string in `Code<T>`
-- **`AllValues`** — static array of all declared instances in source order
+- **`[SmartEnum]` attribute** - opt-in marker injected into the consuming project at build time
+- **`Code<T>` property** - typed business code for each instance
+- **`FromCode(Code<T>)`** - look up an instance by its typed code; throws `ArgumentException` for unknown values
+- **`FromCode(string)`** - convenience overload that wraps the string in `Code<T>`
+- **`AllValues`** - static array of all declared instances in source order
 
 ## Installation
 
@@ -97,7 +97,7 @@ Generated `AllValues` and `FromCode` match members in **source declaration order
 
 ## Target framework
 
-The generator assembly targets **netstandard2.0** (required for Roslyn source generators) and is not included in the consuming project's build output. The `[SmartEnum]` attribute is injected into the consuming project's compilation at build time — no separate attribute package is needed.
+The generator assembly targets **netstandard2.0** (required for Roslyn source generators) and is not included in the consuming project's build output. The `[SmartEnum]` attribute is injected into the consuming project's compilation at build time; no separate attribute package is needed.
 
 ## Dependencies
 

@@ -4,13 +4,13 @@ Clean, type-safe HttpClient configuration with built-in profiling, content traci
 
 ## Features
 
-- ⚙️ **Configuration-Based Setup** - Configure HttpClients from appsettings.json with IOptions validation
-- 📊 **Built-in Profiling** - Automatic request timing and performance tracking
-- 🔍 **Content Tracing** - Log response content for debugging
-- 🛡️ **Error Handling** - Custom error handlers for failed HTTP requests
-- 🔗 **Chainable API** - Fluent builder pattern for adding handlers
-- ✅ **Startup Validation** - Configuration validated at application startup
-- 🎯 **Type-Safe** - Strongly-typed clients with dependency injection
+- **Configuration-Based Setup** - Configure HttpClients from appsettings.json with IOptions validation
+- **Built-in Profiling** - Automatic request timing and performance tracking
+- **Content Tracing** - Log response content for debugging
+- **Error Handling** - Custom error handlers for failed HTTP requests
+- **Chainable API** - Fluent builder pattern for adding handlers
+- **Startup Validation** - Configuration validated at application startup
+- **Type-Safe** - Strongly-typed clients with dependency injection
 
 ## Installation
 
@@ -29,7 +29,7 @@ public interface IOrderServiceClient
     Task<Order> CreateOrderAsync(CreateOrderRequest request, CancellationToken ct);
 }
 
-public class OrderServiceClient(HttpClient httpClient) : IOrderServiceClient
+public sealed class OrderServiceClient(HttpClient httpClient) : IOrderServiceClient
 {
     public async Task<Order> GetOrderAsync(int orderId, CancellationToken ct)
     {
@@ -78,7 +78,7 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
 ### 4. Use in Your Application
 
 ```csharp
-public class OrderController(IOrderServiceClient orderClient) : ControllerBase
+public sealed class OrderController(IOrderServiceClient orderClient) : ControllerBase
 {
     [HttpGet("{id}")]
     public async Task<IActionResult> GetOrder(int id, CancellationToken ct)
@@ -202,7 +202,7 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
 **Custom handler example:**
 
 ```csharp
-public class AuthenticationHandler(ITokenProvider tokenProvider) : DelegatingHandler
+public sealed class AuthenticationHandler(ITokenProvider tokenProvider) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
@@ -225,7 +225,7 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
 ### Custom Error Handling
 
 ```csharp
-public class OrderServiceErrorHandler(ILogger<OrderServiceErrorHandler> logger) : IHttpErrorHandler
+public sealed class OrderServiceErrorHandler(ILogger<OrderServiceErrorHandler> logger) : IHttpErrorHandler
 {
     public async Task HandleError(
         HttpRequestMessage request,
@@ -338,10 +338,10 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
 ### Command Handler with HTTP Client
 
 ```csharp
-public class CreateOrderHandler(
+public sealed class CreateOrderHandler(
     IOrderServiceClient orderServiceClient,
     IUnitOfWorkFactory uowFactory,
-    ApplicationDbContext dbContext) : ICommandHandler<CreateOrderCommand, Guid>
+    IOrderRepository orderRepository) : ICommandHandler<CreateOrderCommand, Guid>
 {
     public async Task<ResponseWrapper<Guid>> Handle(
         CreateOrderCommand request,
@@ -361,7 +361,7 @@ public class CreateOrderHandler(
                 Id<Order>.From(externalOrder.Id),
                 Code<Order>.From(externalOrder.OrderNumber));
                 
-            dbContext.Orders.Add(order);
+            await orderRepository.AddAsync(order, cancellationToken);
             await uow.SaveChanges(cancellationToken);
             await uow.Commit(cancellationToken);
             
@@ -384,10 +384,10 @@ public class CreateOrderHandler(
    ```csharp
    // Good
    public interface IOrderServiceClient { ... }
-   public class OrderServiceClient : IOrderServiceClient { ... }
+   public sealed class OrderServiceClient : IOrderServiceClient { ... }
    
    // Bad
-   public class OrderServiceClient { ... }  // No interface
+   public sealed class OrderServiceClient { ... }  // No interface
    ```
 
 2. **Configure separate clients for different services:**
@@ -557,7 +557,7 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
     "OrderService");
 
 // Usage
-public class OrderService(IOrderServiceClient orderClient)
+public sealed class OrderService(IOrderServiceClient orderClient)
 {
     public async Task<Order> GetOrderAsync(int id)
     {

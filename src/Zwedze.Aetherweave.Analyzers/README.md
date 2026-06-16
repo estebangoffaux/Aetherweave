@@ -4,8 +4,8 @@ Compile-time Roslyn analyzers that enforce uniqueness of `Id<T>` and `Code<T>` f
 
 ## Features
 
-- **IdDuplicationAnalyzer** — Build error when two fields in the same type share the same `Id<T>` literal value
-- **CodeDuplicationAnalyzer** — Build error when two fields in the same type share the same `Code<T>` string value
+- **IdDuplicationAnalyzer** - Build error when two fields in the same type share the same `Id<T>` literal value
+- **CodeDuplicationAnalyzer** - Build error when two fields in the same type share the same `Code<T>` string value
 
 ## Installation
 
@@ -17,9 +17,9 @@ dotnet add package Zwedze.Aetherweave.Analyzers
 
 ## What it detects
 
-The analyzers target **field initializers** that use the `(Id<T>)literal` or `(Code<T>)"value"` cast patterns — the idiom used by smart-enum-style domain objects. Only duplicates **within the same type** are flagged.
+The analyzers target **field initializers** that use the `(Id<T>)literal` or `(Code<T>)"value"` cast patterns, the idiom used by smart-enum-style domain objects. Only duplicates **within the same type** are flagged.
 
-### IdDuplication — error
+### IdDuplication - error
 
 ```csharp
 public sealed class OrderPriority
@@ -30,7 +30,7 @@ public sealed class OrderPriority
 }
 ```
 
-### CodeDuplication — error
+### CodeDuplication - error
 
 ```csharp
 public sealed class Currency
@@ -53,7 +53,7 @@ public sealed class Currency
 - Inspects `ClassDeclarationSyntax` and `RecordDeclarationSyntax` nodes.
 - Only field declarations with an initializer using the explicit cast pattern are analysed.
 - The first occurrence of a value is accepted; every subsequent duplicate is reported.
-- Cross-type duplicates are not flagged — `Id<Order>` values are checked independently of `Id<Customer>` values.
+- Cross-type duplicates are not flagged; `Id<Order>` values are checked independently of `Id<Customer>` values.
 
 ## Target framework
 

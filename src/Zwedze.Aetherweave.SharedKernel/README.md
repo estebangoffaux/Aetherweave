@@ -4,11 +4,11 @@ Domain-Driven Design building blocks and primitives for building clean, maintain
 
 ## Features
 
-- 🏛️ **Aggregate Root** - Base class for domain aggregates with built-in domain event support
-- 🎯 **Type-Safe IDs** - Generic value objects for entity identifiers
-- 🏷️ **Business Codes** - Type-safe business identifiers and natural keys
-- ⚡ **Domain Events** - Event infrastructure for domain event patterns
-- 🛡️ **Business Exceptions** - Base exception class for domain errors
+- **Aggregate Root** - Base class for domain aggregates with built-in domain event support
+- **Type-Safe IDs** - Generic value objects for entity identifiers
+- **Business Codes** - Type-safe business identifiers and natural keys
+- **Domain Events** - Event infrastructure for domain event patterns
+- **Business Exceptions** - Base exception class for domain errors
 
 ## Installation
 
@@ -123,7 +123,7 @@ public record OrderCancelledEvent(Id<Order> OrderId, string Reason) : DomainEven
 **Raise events from aggregates:**
 
 ```csharp
-public class Order : AggregateRoot<Order>
+public sealed class Order : AggregateRoot<Order>
 {
     public void Cancel(string reason)
     {
@@ -138,7 +138,7 @@ public class Order : AggregateRoot<Order>
 **Dispatch events after persistence:**
 
 ```csharp
-public class OrderService(
+public sealed class OrderService(
     IOrderRepository orderRepository,
     IDomainEventDispatcher eventDispatcher)
 {
@@ -161,7 +161,7 @@ public class OrderService(
 
 Mandatory to provide a business code and a message. But it is recommended to include additional context for the developer.
 ```csharp
-public class InsufficientStockException(int requested, int available) 
+public sealed class InsufficientStockException(int requested, int available) 
     : BusinessException(
         $"Insufficient stock. Requested: {requested}, Available: {available}",
         "STOCK_001")
@@ -170,7 +170,7 @@ public class InsufficientStockException(int requested, int available)
     public int Available { get; } = available;
 }
 
-public class OrderNotFoundException(Id<Order> orderId) 
+public sealed class OrderNotFoundException(Id<Order> orderId) 
     : BusinessException(
         $"Order {orderId} not found",
         "ORDER_001")
@@ -178,7 +178,7 @@ public class OrderNotFoundException(Id<Order> orderId)
     public Id<Order> OrderId { get; } = orderId;
 }
 
-public class InvalidOrderStateException(OrderStatus currentState, OrderStatus requiredState) 
+public sealed class InvalidOrderStateException(OrderStatus currentState, OrderStatus requiredState) 
     : BusinessException(
         $"Order must be in {requiredState} state, but is in {currentState}",
         "ORDER_002")
@@ -191,7 +191,7 @@ public class InvalidOrderStateException(OrderStatus currentState, OrderStatus re
 **Use in domain logic:**
 
 ```csharp
-public class Product : AggregateRoot<Product>
+public sealed class Product : AggregateRoot<Product>
 {
     public int StockQuantity { get; private set; }
 
@@ -278,7 +278,7 @@ public interface IDomainEvent
 **Access in handlers (implemented in the Application layer):**
 
 ```csharp
-public class OrderSubmittedHandler : IDomainEventHandler<OrderSubmittedEvent>
+public sealed class OrderSubmittedHandler : IDomainEventHandler<OrderSubmittedEvent>
 {
     public async Task HandleAsync(OrderSubmittedEvent @event, CancellationToken ct)
     {
@@ -434,7 +434,7 @@ public interface IOrderRepository
 4. **Don't make aggregates too large:**
    ```csharp
    // Bad - Order managing inventory, shipping, billing
-   public class Order : AggregateRoot<Order>
+   public sealed class Order : AggregateRoot<Order>
    {
        public void ManageInventory() { }
        public void ProcessShipping() { }
@@ -442,7 +442,7 @@ public interface IOrderRepository
    }
    
    // Good - Focused aggregate
-   public class Order : AggregateRoot<Order>
+   public sealed class Order : AggregateRoot<Order>
    {
        public void Submit() { }
        public void Cancel(string reason) { }

@@ -4,12 +4,12 @@ Clean, minimal EF Core wrapper with Unit of Work pattern for building maintainab
 
 ## Features
 
-- 🔄 **Unit of Work Pattern** - Transactional unit of work with explicit commit/rollback
-- ⚙️ **Auto-Configuration** - Configure DbContext from appsettings.json
-- ⚡ **Auto-Starting Transactions** - No manual BeginTransaction needed
-- 🏥 **Built-in Health Checks** - Ready for production monitoring
-- 🛡️ **Provider Agnostic** - Works with any EF Core provider (PostgreSQL, SQL Server, SQLite, etc.)
-- 🎯 **Clean Disposal** - Auto-rollback uncommitted transactions with warnings
+- **Unit of Work Pattern** - Transactional unit of work with explicit commit/rollback
+- **Auto-Configuration** - Configure DbContext from appsettings.json
+- **Auto-Starting Transactions** - No manual BeginTransaction needed
+- **Built-in Health Checks** - Ready for production monitoring
+- **Provider Agnostic** - Works with any EF Core provider (PostgreSQL, SQL Server, SQLite, etc.)
+- **Clean Disposal** - Auto-rollback uncommitted transactions with warnings
 
 ## Installation
 
@@ -22,8 +22,8 @@ dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL  # Or your preferred pr
 
 This library is designed for architectures that separate **domain models** from **persistence models**:
 
-- **Domain model** (e.g. `Order`) — the public type used throughout the application and domain layers. Never referenced by EF Core directly.
-- **Record model** (e.g. `OrderRecord`) — an `internal` type owned by the data layer. EF Core maps columns to this type. It is never exposed outside the data project.
+- **Domain model** (e.g. `Order`) - the public type used throughout the application and domain layers. Never referenced by EF Core directly.
+- **Record model** (e.g. `OrderRecord`) - an `internal` type owned by the data layer. EF Core maps columns to this type. It is never exposed outside the data project.
 
 `DbSet<T>` properties on your `DbContext` are typed against `XRecord` and marked `internal`, so they cannot leak persistence concerns into the application layer. Repositories are responsible for mapping between the two.
 
@@ -65,7 +65,7 @@ public interface IOrderRepository
 ```csharp
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
-    // Internal DbSets — persistence models only, not exposed to the application layer
+    // Internal DbSets - persistence models only, not exposed to the application layer
     internal DbSet<OrderRecord> Orders => Set<OrderRecord>();
     internal DbSet<OrderItemRecord> OrderItems => Set<OrderItemRecord>();
 
@@ -157,20 +157,20 @@ services.AddAetherweaveData<ApplicationDbContext>(
 
 ### 4. Use in Your Application
 
-**Read-only query — inject the repository, not the DbContext:**
+**Read-only query - inject the repository, not the DbContext:**
 
 ```csharp
-public class OrderQueryService(IOrderRepository orderRepository)
+public sealed class OrderQueryService(IOrderRepository orderRepository)
 {
     public Task<Order?> GetOrderAsync(Id<Order> orderId, CancellationToken ct)
         => orderRepository.GetByIdAsync(orderId, ct);
 }
 ```
 
-**Transactional write — the service coordinates the UoW; the repository handles persistence:**
+**Transactional write - the service coordinates the UoW; the repository handles persistence:**
 
 ```csharp
-public class OrderCommandService(IUnitOfWorkFactory uowFactory, IOrderRepository orderRepository)
+public sealed class OrderCommandService(IUnitOfWorkFactory uowFactory, IOrderRepository orderRepository)
 {
     public async Task CreateOrderAsync(CreateOrderCommand command, CancellationToken ct)
     {
@@ -346,7 +346,7 @@ public async Task ProcessOrderAsync(ProcessOrderCommand command, CancellationTok
 ### Command Handler
 
 ```csharp
-public class CreateOrderHandler(
+public sealed class CreateOrderHandler(
     IUnitOfWorkFactory uowFactory,
     IOrderRepository orderRepository,
     IDomainEventDispatcher eventDispatcher) : ICommandHandler<CreateOrderCommand, Guid>
@@ -385,7 +385,7 @@ public class CreateOrderHandler(
 ### Query Handler (No Transaction Needed)
 
 ```csharp
-public class GetOrderByIdHandler(IOrderRepository orderRepository) 
+public sealed class GetOrderByIdHandler(IOrderRepository orderRepository) 
     : IQueryHandler<GetOrderByIdQuery, OrderDto>
 {
     public async Task<ResponseWrapper<OrderDto>> Handle(
@@ -410,7 +410,7 @@ public class GetOrderByIdHandler(IOrderRepository orderRepository)
 Repositories are the only place that accesses `DbContext`. They accept and return **domain models** publicly, and handle the mapping to and from **record models** internally.
 
 ```csharp
-// Public interface — lives in the application or domain layer
+// Public interface - lives in the application or domain layer
 public interface IOrderRepository
 {
     Task<Order?> GetByIdAsync(Id<Order> id, CancellationToken ct);
@@ -419,7 +419,7 @@ public interface IOrderRepository
     void Update(Order order);
 }
 
-// Internal implementation — lives in the data layer; DbContext never leaves this class
+// Internal implementation - lives in the data layer; DbContext never leaves this class
 internal sealed class OrderRepository(ApplicationDbContext dbContext) : IOrderRepository
 {
     public async Task<Order?> GetByIdAsync(Id<Order> id, CancellationToken ct)
@@ -450,7 +450,7 @@ internal sealed class OrderRepository(ApplicationDbContext dbContext) : IOrderRe
 Services and handlers only depend on the interface:
 
 ```csharp
-public class OrderService(IOrderRepository orderRepository, IUnitOfWorkFactory uowFactory)
+public sealed class OrderService(IOrderRepository orderRepository, IUnitOfWorkFactory uowFactory)
 {
     public async Task CreateOrderAsync(CreateOrderCommand command, CancellationToken ct)
     {
@@ -469,23 +469,23 @@ public class OrderService(IOrderRepository orderRepository, IUnitOfWorkFactory u
 
 ### ✅ DO
 
-1. **Keep record models `internal`** — persistence types must not leak into the application or domain layers:
+1. **Keep record models `internal`** - persistence types must not leak into the application or domain layers:
    ```csharp
    // Good
    internal sealed record OrderRecord(long Id, string Code, long CustomerId);
    internal DbSet<OrderRecord> Orders => Set<OrderRecord>();
    ```
 
-2. **Keep `DbContext` inside repositories** — services and handlers inject `IXRepository`, never `DbContext`:
+2. **Keep `DbContext` inside repositories** - services and handlers inject `IXRepository`, never `DbContext`:
    ```csharp
-   // Good — handler depends only on the repository interface
-   public class CreateOrderHandler(IUnitOfWorkFactory uowFactory, IOrderRepository orderRepository) { }
+   // Good - handler depends only on the repository interface
+   public sealed class CreateOrderHandler(IUnitOfWorkFactory uowFactory, IOrderRepository orderRepository) { }
    
-   // Bad — handler reaches into the data layer directly
-   public class CreateOrderHandler(IUnitOfWorkFactory uowFactory, ApplicationDbContext dbContext) { }
+   // Bad - handler reaches into the data layer directly
+   public sealed class CreateOrderHandler(IUnitOfWorkFactory uowFactory, ApplicationDbContext dbContext) { }
    ```
 
-3. **Map at the repository boundary** — repositories translate between the domain model and the record:
+3. **Map at the repository boundary** - repositories translate between the domain model and the record:
    ```csharp
    public async Task AddAsync(Order order, CancellationToken ct)
        => await dbContext.Orders.AddAsync(OrderMapper.ToRecord(order), ct);
@@ -522,10 +522,10 @@ public class OrderService(IOrderRepository orderRepository, IUnitOfWorkFactory u
 1. **Don't inject `DbContext` into services or handlers:**
    ```csharp
    // Bad - DbContext leaks out of the data layer
-   public class OrderService(ApplicationDbContext dbContext) { }
+   public sealed class OrderService(ApplicationDbContext dbContext) { }
    
    // Good - depends on the abstraction
-   public class OrderService(IOrderRepository orderRepository) { }
+   public sealed class OrderService(IOrderRepository orderRepository) { }
    ```
 
 2. **Don't expose record models outside the data project:**
@@ -623,7 +623,7 @@ public class OrderService(IOrderRepository orderRepository, IUnitOfWorkFactory u
 
 ## Migration from Raw EF Core
 
-**Before (raw EF Core — single model, DbContext injected everywhere):**
+**Before (raw EF Core, single model, DbContext injected everywhere):**
 
 ```csharp
 public class OrderService(ApplicationDbContext dbContext)
@@ -651,7 +651,7 @@ public class OrderService(ApplicationDbContext dbContext)
 }
 ```
 
-**After (Aetherweave — two models, DbContext hidden inside repositories):**
+**After (Aetherweave, two models, DbContext hidden inside repositories):**
 
 ```csharp
 // Data layer: DbContext stays here
@@ -662,7 +662,7 @@ internal sealed class OrderRepository(ApplicationDbContext dbContext) : IOrderRe
 }
 
 // Application layer: service only knows about the repository interface
-public class OrderService(
+public sealed class OrderService(
     IUnitOfWorkFactory uowFactory,
     IOrderRepository orderRepository,
     IInvoiceRepository invoiceRepository)

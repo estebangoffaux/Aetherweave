@@ -1,12 +1,12 @@
 # Aetherweave.Data
 
-Core data persistence abstractions for the Aetherweave framework — Unit of Work interfaces consumed by application-layer code.
+Core data persistence abstractions for the Aetherweave framework. Unit of Work interfaces consumed by application-layer code.
 
 ## Features
 
-- **IUnitOfWork** — Save-changes contract with `IDisposable` / `IAsyncDisposable` support
-- **ITransactionalUnitOfWork** — Extends `IUnitOfWork` with explicit `Commit` and `Rollback`
-- **IUnitOfWorkFactory** — Factory for obtaining a transactional unit of work from DI
+- **IUnitOfWork** - Save-changes contract with `IDisposable` / `IAsyncDisposable` support
+- **ITransactionalUnitOfWork** - Extends `IUnitOfWork` with explicit `Commit` and `Rollback`
+- **IUnitOfWorkFactory** - Factory for obtaining a transactional unit of work from DI
 
 ## Installation
 
@@ -53,7 +53,7 @@ public interface IUnitOfWorkFactory
 ## Usage
 
 ```csharp
-public class CreateOrderHandler(IUnitOfWorkFactory uowFactory) : ICommandHandler<CreateOrderCommand, Guid>
+public sealed class CreateOrderHandler(IUnitOfWorkFactory uowFactory) : ICommandHandler<CreateOrderCommand, Guid>
 {
     public async Task<ResponseWrapper<Guid>> Handle(CreateOrderCommand request, CancellationToken ct)
     {
@@ -61,14 +61,14 @@ public class CreateOrderHandler(IUnitOfWorkFactory uowFactory) : ICommandHandler
 
         // ... persist changes ...
         await uow.SaveChanges(ct);
-        await uow.Commit(ct);    // required — omitting causes automatic rollback on disposal
+        await uow.Commit(ct);    // required - omitting causes automatic rollback on disposal
 
-        return ResponseWrapper<Guid>.Ok(orderId);
+        return ResponseWrapper.Ok(orderId);
     }
 }
 ```
 
-For **read-only queries** inject the `DbContext` (or repository) directly — no unit of work is needed.
+For **read-only queries** inject the `DbContext` (or repository) directly. No unit of work is needed.
 
 ## Dependencies
 

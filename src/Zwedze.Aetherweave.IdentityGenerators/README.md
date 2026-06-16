@@ -5,13 +5,13 @@ across multiple instances.
 
 ## Features
 
-- ❄️ **Snowflake-Based IDs** - Generate 64-bit distributed unique identifiers
-- 🏷️ **Type-Safe Integration** - Direct support for `Id<T>` and `Code<T>` from SharedKernel
-- 🖥️ **Multi-Instance Support** - Machine name or IP-based instance identification
-- ⏰ **Custom Epoch** - Configure your own epoch start date
-- 🔄 **Clock Drift Protection** - Automatic retry on system clock issues
-- 🎯 **Sequential & Sortable** - IDs are chronologically ordered
-- ⚡ **High Performance** - Generate millions of IDs per second
+- **Snowflake-Based IDs** - Generate 64-bit distributed unique identifiers
+- **Type-Safe Integration** - Direct support for `Id<T>` and `Code<T>` from SharedKernel
+- **Multi-Instance Support** - Machine name or IP-based instance identification
+- **Custom Epoch** - Configure your own epoch start date
+- **Clock Drift Protection** - Automatic retry on system clock issues
+- **Sequential & Sortable** - IDs are chronologically ordered
+- **High Performance** - Generate millions of IDs per second
 
 ## Installation
 
@@ -55,7 +55,7 @@ services.AddAetherweaveGenerators(options =>
 ### 2. Inject and Use
 
 ```csharp
-public class OrderService(IIdentityGenerator identityGenerator)
+public sealed class OrderService(IIdentityGenerator identityGenerator)
 {
     public async Task<Order> CreateOrderAsync(CreateOrderCommand command)
     {
@@ -76,7 +76,7 @@ public class OrderService(IIdentityGenerator identityGenerator)
 ### 3. Use in Aggregates
 
 ```csharp
-public class Order : AggregateRoot<Order>
+public sealed class Order : AggregateRoot<Order>
 {
     public Order(Id<Order> id, Code<Order> code) : base(id, code)
     {
@@ -262,7 +262,7 @@ var orderCode = identityGenerator.CreateCode<Order>();
 ### Integration with Domain Entities
 
 ```csharp
-public class Order : AggregateRoot<Order>
+public sealed class Order : AggregateRoot<Order>
 {
     // Private constructor for EF Core
     private Order() { }
@@ -302,7 +302,7 @@ public class Order : AggregateRoot<Order>
 ### Integration with CQRS
 
 ```csharp
-public class CreateOrderHandler(
+public sealed class CreateOrderHandler(
     IIdentityGenerator identityGenerator,
     IOrderRepository orderRepository,
     IUnitOfWorkFactory uowFactory) : ICommandHandler<CreateOrderCommand, Id<Order>>
@@ -331,7 +331,7 @@ public class CreateOrderHandler(
 ### Entity Framework Core Configuration
 
 ```csharp
-public class OrderConfiguration : IEntityTypeConfiguration<Order>
+public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
     public void Configure(EntityTypeBuilder<Order> builder)
     {
@@ -361,7 +361,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 ### Multiple Entity Types
 
 ```csharp
-public class ApplicationService(IIdentityGenerator identityGenerator)
+public sealed class ApplicationService(IIdentityGenerator identityGenerator)
 {
     public async Task ProcessWorkflow()
     {
@@ -595,7 +595,7 @@ public class Order
 ### After (Snowflake IDs)
 
 ```csharp
-public class Order : AggregateRoot<Order>
+public sealed class Order : AggregateRoot<Order>
 {
     public Order(Id<Order> id, Code<Order> code) : base(id, code)
     {
