@@ -1,2 +1,23 @@
-workflow: GitFlow/v1
 mode: ContinuousDelivery
+branches:
+  main:
+    label: ""
+    increment: Patch
+    is-main-branch: true
+    prevent-increment:
+      when-current-commit-tagged: true
+  develop:
+    label: "pre"
+    increment: Patch
+    prevent-increment:
+      when-current-commit-tagged: true
+    source-branches:
+      - main
+  feature:
+    regex: "^features?[\\/-](?<BranchName>.+)"
+    label: "{BranchName}"
+    increment: Patch
+    prevent-increment:
+      when-current-commit-tagged: true
+    source-branches:
+      - develop
