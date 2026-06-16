@@ -1,5 +1,7 @@
 # Aetherweave
 
+<img src="Icon.png" alt="Aetherweave" width="50" />
+
 A pragmatic framework for building clean, maintainable .NET applications using Domain-Driven Design and functional
 programming patterns.
 

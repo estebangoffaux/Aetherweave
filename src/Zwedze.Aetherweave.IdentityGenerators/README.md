@@ -323,7 +323,7 @@ public class CreateOrderHandler(
         await uow.SaveChanges(cancellationToken);
         await uow.Commit(cancellationToken);
         
-        return ResponseWrapper<Id<Order>>.Ok(order.Id);
+        return ResponseWrapper.Ok(order.Id);
     }
 }
 ```

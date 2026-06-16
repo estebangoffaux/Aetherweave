@@ -6,7 +6,7 @@ Clean, type-safe HttpClient configuration with built-in profiling, content traci
 
 - ⚙️ **Configuration-Based Setup** - Configure HttpClients from appsettings.json with IOptions validation
 - 📊 **Built-in Profiling** - Automatic request timing and performance tracking
-- 🔍 **Content Tracing** - Log request/response content for debugging
+- 🔍 **Content Tracing** - Log response content for debugging
 - 🛡️ **Error Handling** - Custom error handlers for failed HTTP requests
 - 🔗 **Chainable API** - Fluent builder pattern for adding handlers
 - ✅ **Startup Validation** - Configuration validated at application startup
@@ -98,7 +98,7 @@ public class OrderController(IOrderServiceClient orderClient) : ControllerBase
 | `BaseAddress`          | `string`   | -          | ✅        | Base URL for the HTTP client (must be absolute URI) |
 | `Timeout`              | `TimeSpan` | `00:00:30` | ❌        | Request timeout (must be > 0)                       |
 | `EnableProfiling`      | `bool`     | `false`    | ❌        | Enable request timing and performance logging       |
-| `EnableContentTracing` | `bool`     | `false`    | ❌        | Enable request/response content logging             |
+| `EnableContentTracing` | `bool`     | `false`    | ❌        | Enable response content logging                     |
 | `MaxContentLogSize`    | `int`      | `10000`    | ❌        | Maximum bytes to log (content truncated if larger)  |
 
 ### Multiple Clients Configuration
@@ -157,7 +157,7 @@ Automatically logs request timing when `EnableProfiling` is `true`:
 
 ```json
 {
-  "IOrderServiceClient": {
+  "OrderService": {
     "BaseAddress": "https://api.orders.example.com",
     "EnableProfiling": true
   }
@@ -166,7 +166,7 @@ Automatically logs request timing when `EnableProfiling` is `true`:
 
 ### Content Tracing Handler
 
-Logs request/response content when `EnableContentTracing` is `true`:
+Logs response content when `EnableContentTracing` is `true`:
 
 ```
 [2025-12-20 10:30:45] HTTP GET https://api.orders.example.com/api/orders/123 returned 200 (1234 bytes): {"orderId":123,"total":99.99,...}
@@ -270,16 +270,17 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
 
 **Handler execution order:**
 
-1. AuthenticationHandler (adds token)
-2. RetryPolicyHandler (retries on failure)
-3. ProfilingHandler (measures time) - built-in
-4. ContentTracingHandler (logs content) - built-in
+1. ProfilingHandler (starts timer) - built-in, outermost
+2. ContentTracingHandler (logs response) - built-in
+3. AuthenticationHandler (adds token)
+4. RetryPolicyHandler (retries on failure)
 5. HttpErrorResponseHandler (custom error handling)
 6. → Actual HTTP request →
 7. HttpErrorResponseHandler (processes errors)
-8. ContentTracingHandler (logs response)
-9. ProfilingHandler (logs timing)
-10. RetryPolicyHandler (retry if needed)
+8. RetryPolicyHandler (retry if needed)
+9. AuthenticationHandler
+10. ContentTracingHandler (logs response content)
+11. ProfilingHandler (logs timing)
 
 ### Environment-Specific Configuration
 
@@ -364,11 +365,11 @@ public class CreateOrderHandler(
             await uow.SaveChanges(cancellationToken);
             await uow.Commit(cancellationToken);
             
-            return ResponseWrapper<Guid>.Ok(order.Id);
+            return ResponseWrapper.Ok(order.Id);
         }
         catch (OrderServiceException ex)
         {
-            return ResponseWrapper<Guid>.Fail(
+            return ResponseWrapper.Fail<Guid>(
                 ErrorFactory.Create("EXTERNAL_SERVICE_ERROR", ex.Message));
         }
     }

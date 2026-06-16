@@ -4,7 +4,7 @@ Clean, minimal EF Core wrapper with Unit of Work pattern for building maintainab
 
 ## Features
 
-- 🔄 **Unit of Work Pattern** - Transactional and non-transactional support
+- 🔄 **Unit of Work Pattern** - Transactional unit of work with explicit commit/rollback
 - ⚙️ **Auto-Configuration** - Configure DbContext from appsettings.json
 - ⚡ **Auto-Starting Transactions** - No manual BeginTransaction needed
 - 🏥 **Built-in Health Checks** - Ready for production monitoring
@@ -18,20 +18,91 @@ dotnet add package Zwedze.Aetherweave.Data.Relational
 dotnet add package Npgsql.EntityFrameworkCore.PostgreSQL  # Or your preferred provider
 ```
 
+## Two-Model Architecture
+
+This library is designed for architectures that separate **domain models** from **persistence models**:
+
+- **Domain model** (e.g. `Order`) — the public type used throughout the application and domain layers. Never referenced by EF Core directly.
+- **Record model** (e.g. `OrderRecord`) — an `internal` type owned by the data layer. EF Core maps columns to this type. It is never exposed outside the data project.
+
+`DbSet<T>` properties on your `DbContext` are typed against `XRecord` and marked `internal`, so they cannot leak persistence concerns into the application layer. Repositories are responsible for mapping between the two.
+
+The `DbContext` itself is also an implementation detail: only repositories access it directly. Services and handlers depend exclusively on repository interfaces.
+
+```
+Application / domain layer  →  Order (domain model, public)
+                                      ↕  IOrderRepository (public interface)
+Data layer                  →  OrderRepository (internal implementation)
+                                      ↕  maps via OrderMapper
+                            →  OrderRecord (persistence model, internal)  →  EF Core / database
+```
+
 ## Quick Start
 
-### 1. Define Your DbContext
+### 1. Define Persistence Models, Repository Interface, and DbContext
+
+**Persistence models** (internal to the data project):
+
+```csharp
+internal sealed record OrderRecord(long Id, string Code, long CustomerId, string Status);
+internal sealed record OrderItemRecord(long Id, long OrderId, long ProductId, int Quantity);
+```
+
+**Repository interface** (public, lives in the application or domain layer):
+
+```csharp
+public interface IOrderRepository
+{
+    Task<Order?> GetByIdAsync(Id<Order> id, CancellationToken ct);
+    Task<Order?> GetByCodeAsync(Code<Order> code, CancellationToken ct);
+    Task AddAsync(Order order, CancellationToken ct);
+    void Update(Order order);
+}
+```
+
+**DbContext** (scoped to the data project; `DbSet` properties are `internal`):
 
 ```csharp
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
-    public DbSet<Order> Orders => Set<Order>();
-    public DbSet<Customer> Customers => Set<Customer>();
+    // Internal DbSets — persistence models only, not exposed to the application layer
+    internal DbSet<OrderRecord> Orders => Set<OrderRecord>();
+    internal DbSet<OrderItemRecord> OrderItems => Set<OrderItemRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
     }
+}
+```
+
+**Repository implementation** (internal to the data project; the only place `DbContext` is used):
+
+```csharp
+internal sealed class OrderRepository(ApplicationDbContext dbContext) : IOrderRepository
+{
+    public async Task<Order?> GetByIdAsync(Id<Order> id, CancellationToken ct)
+    {
+        var record = await dbContext.Orders
+            .Include(o => o.Items)
+            .FirstOrDefaultAsync(o => o.Id == (long)id, ct);
+
+        return record is null ? null : OrderMapper.ToDomain(record);
+    }
+
+    public async Task<Order?> GetByCodeAsync(Code<Order> code, CancellationToken ct)
+    {
+        var record = await dbContext.Orders
+            .FirstOrDefaultAsync(o => o.Code == (string)code, ct);
+
+        return record is null ? null : OrderMapper.ToDomain(record);
+    }
+
+    public async Task AddAsync(Order order, CancellationToken ct)
+        => await dbContext.Orders.AddAsync(OrderMapper.ToRecord(order), ct);
+
+    public void Update(Order order)
+        => dbContext.Orders.Update(OrderMapper.ToRecord(order));
 }
 ```
 
@@ -62,6 +133,8 @@ services.AddAetherweaveData<ApplicationDbContext>(
     configuration,
     (builder, options) => builder.UseNpgsql(
         configuration.GetConnectionString(options.ConnectionStringName)));
+
+services.AddScoped<IOrderRepository, OrderRepository>();
 ```
 
 **SQL Server:**
@@ -84,46 +157,35 @@ services.AddAetherweaveData<ApplicationDbContext>(
 
 ### 4. Use in Your Application
 
-**Non-Transactional (Auto-commit):**
+**Read-only query — inject the repository, not the DbContext:**
 
 ```csharp
-public class OrderService(IUnitOfWorkFactory uowFactory, ApplicationDbContext dbContext)
+public class OrderQueryService(IOrderRepository orderRepository)
 {
-    public async Task UpdateOrderStatus(Id<Order> orderId, OrderStatus status)
-    {
-        await using var uow = uowFactory.CreateNonTransactional();
-        
-        var order = await dbContext.Orders.FindAsync(orderId);
-        order.UpdateStatus(status);
-        
-        await uow.SaveChanges();  // Commits immediately
-    }
+    public Task<Order?> GetOrderAsync(Id<Order> orderId, CancellationToken ct)
+        => orderRepository.GetByIdAsync(orderId, ct);
 }
 ```
 
-**Transactional (Explicit commit):**
+**Transactional write — the service coordinates the UoW; the repository handles persistence:**
 
 ```csharp
-public class OrderService(IUnitOfWorkFactory uowFactory, ApplicationDbContext dbContext)
+public class OrderCommandService(IUnitOfWorkFactory uowFactory, IOrderRepository orderRepository)
 {
-    public async Task CreateOrder(CreateOrderCommand command)
+    public async Task CreateOrderAsync(CreateOrderCommand command, CancellationToken ct)
     {
         await using var uow = uowFactory.CreateTransactional();
-        
-        // Transaction auto-starts on first SaveChanges
-        var order = new Order(command.CustomerId, command.Items);
-        dbContext.Orders.Add(order);
-        await uow.SaveChanges();
-        
-        // Do more work...
-        var invoice = new Invoice(order.Id, order.Total);
-        dbContext.Invoices.Add(invoice);
-        await uow.SaveChanges();
-        
-        // Explicitly commit - all or nothing
-        await uow.Commit();
-        
-        // If you forget to commit, transaction auto-rolls back on dispose
+
+        var order = Order.Create(command.CustomerId, command.Items);
+        await orderRepository.AddAsync(order, ct);
+        await uow.SaveChanges(ct);
+
+        var invoice = Invoice.For(order);
+        await invoiceRepository.AddAsync(invoice, ct);
+        await uow.SaveChanges(ct);
+
+        await uow.Commit(ct);
+        // If you forget to commit, the transaction auto-rolls back on dispose
     }
 }
 ```
@@ -226,32 +288,31 @@ Disable if not needed:
 services.AddAetherweaveData<ApplicationDbContext>(
     configuration,
     configure,
-    addHealthCheck: false);  // Disable health check
+    addHealthCheck: false);
 ```
 
 ### Transactional Unit of Work - Error Handling
 
 ```csharp
-public async Task ProcessPayment(PaymentCommand command)
+public async Task ProcessPaymentAsync(PaymentCommand command, CancellationToken ct)
 {
     await using var uow = uowFactory.CreateTransactional();
     
     try
     {
-        var payment = new Payment(command.Amount);
-        dbContext.Payments.Add(payment);
-        await uow.SaveChanges();
+        var payment = Payment.Create(command.Amount);
+        await paymentRepository.AddAsync(payment, ct);
+        await uow.SaveChanges(ct);
         
-        var invoice = new Invoice(payment.Id);
-        dbContext.Invoices.Add(invoice);
-        await uow.SaveChanges();
+        var invoice = Invoice.For(payment);
+        await invoiceRepository.AddAsync(invoice, ct);
+        await uow.SaveChanges(ct);
         
-        await uow.Commit();
+        await uow.Commit(ct);
     }
     catch (Exception)
     {
-        // Automatic rollback on exception
-        await uow.Rollback();  // Optional - happens automatically
+        await uow.Rollback(ct);  // Optional - happens automatically on dispose
         throw;
     }
 }
@@ -260,21 +321,23 @@ public async Task ProcessPayment(PaymentCommand command)
 ### Explicit Rollback
 
 ```csharp
-public async Task ProcessOrder(ProcessOrderCommand command)
+public async Task ProcessOrderAsync(ProcessOrderCommand command, CancellationToken ct)
 {
     await using var uow = uowFactory.CreateTransactional();
+
+    var order = await orderRepository.GetByIdAsync(command.OrderId, ct);
+
+    order!.Process();
+    orderRepository.Update(order);
+    await uow.SaveChanges(ct);
     
-    var order = await dbContext.Orders.FindAsync(command.OrderId);
-    order.Process();
-    await uow.SaveChanges();
-    
-    if (!await ValidateInventory(order))
+    if (!await ValidateInventoryAsync(order, ct))
     {
-        await uow.Rollback();  // Explicit rollback
+        await uow.Rollback(ct);  // Explicit rollback
         throw new InsufficientInventoryException();
     }
     
-    await uow.Commit();
+    await uow.Commit(ct);
 }
 ```
 
@@ -285,7 +348,7 @@ public async Task ProcessOrder(ProcessOrderCommand command)
 ```csharp
 public class CreateOrderHandler(
     IUnitOfWorkFactory uowFactory,
-    ApplicationDbContext dbContext,
+    IOrderRepository orderRepository,
     IDomainEventDispatcher eventDispatcher) : ICommandHandler<CreateOrderCommand, Guid>
 {
     public async Task<ResponseWrapper<Guid>> Handle(
@@ -296,28 +359,24 @@ public class CreateOrderHandler(
         
         try
         {
-            var order = new Order(
+            var order = Order.Create(
                 Id<Order>.From(request.Id),
                 Code<Order>.From(request.OrderNumber),
-                request.CustomerId);
-                
-            foreach (var item in request.Items)
-            {
-                order.AddItem(item.Product, item.Quantity);
-            }
-            
-            dbContext.Orders.Add(order);
+                request.CustomerId,
+                request.Items);
+
+            await orderRepository.AddAsync(order, cancellationToken);
             await uow.SaveChanges(cancellationToken);
             await uow.Commit(cancellationToken);
             
             // Dispatch domain events after successful commit
             await eventDispatcher.DispatchAsync(order, cancellationToken);
             
-            return ResponseWrapper<Guid>.Ok(order.Id);
+            return ResponseWrapper.Ok(order.Id);
         }
         catch (BusinessException ex)
         {
-            return ResponseWrapper<Guid>.Fail(ErrorFactory.Create(ex));
+            return ResponseWrapper.Fail<Guid>(ErrorFactory.Create(ex));
         }
     }
 }
@@ -326,74 +385,82 @@ public class CreateOrderHandler(
 ### Query Handler (No Transaction Needed)
 
 ```csharp
-public class GetOrderByIdHandler(ApplicationDbContext dbContext) 
+public class GetOrderByIdHandler(IOrderRepository orderRepository) 
     : IQueryHandler<GetOrderByIdQuery, OrderDto>
 {
     public async Task<ResponseWrapper<OrderDto>> Handle(
         GetOrderByIdQuery request,
         CancellationToken cancellationToken)
     {
-        // No-tracking query (read-only)
-        var order = await dbContext.Orders
-            .AsNoTracking()
-            .Include(o => o.Items)
-            .FirstOrDefaultAsync(o => o.Id == request.OrderId, cancellationToken);
+        var order = await orderRepository.GetByIdAsync(request.OrderId, cancellationToken);
             
         if (order is null)
         {
             var error = ErrorFactory.Create("ORDER_NOT_FOUND", "Order not found");
-            return ResponseWrapper<OrderDto>.Fail(error);
+            return ResponseWrapper.Fail<OrderDto>(error);
         }
         
-        var dto = OrderDto.FromEntity(order);
-        return ResponseWrapper<OrderDto>.Ok(dto);
+        return ResponseWrapper.Ok(OrderDto.FromDomain(order));
     }
 }
 ```
 
 ## Repository Pattern
 
+Repositories are the only place that accesses `DbContext`. They accept and return **domain models** publicly, and handle the mapping to and from **record models** internally.
+
 ```csharp
-public class OrderRepository(ApplicationDbContext dbContext) : IOrderRepository
+// Public interface — lives in the application or domain layer
+public interface IOrderRepository
+{
+    Task<Order?> GetByIdAsync(Id<Order> id, CancellationToken ct);
+    Task<Order?> GetByCodeAsync(Code<Order> code, CancellationToken ct);
+    Task AddAsync(Order order, CancellationToken ct);
+    void Update(Order order);
+}
+
+// Internal implementation — lives in the data layer; DbContext never leaves this class
+internal sealed class OrderRepository(ApplicationDbContext dbContext) : IOrderRepository
 {
     public async Task<Order?> GetByIdAsync(Id<Order> id, CancellationToken ct)
     {
-        return await dbContext.Orders
+        var record = await dbContext.Orders
             .Include(o => o.Items)
-            .FirstOrDefaultAsync(o => o.Id == id, ct);
+            .FirstOrDefaultAsync(o => o.Id == (long)id, ct);
+
+        return record is null ? null : OrderMapper.ToDomain(record);
     }
 
-    public async Task<Order?> GetByCodeAsync(Code<Order> orderNumber, CancellationToken ct)
+    public async Task<Order?> GetByCodeAsync(Code<Order> code, CancellationToken ct)
     {
-        return await dbContext.Orders
-            .FirstOrDefaultAsync(o => o.Code == orderNumber, ct);
+        var record = await dbContext.Orders
+            .FirstOrDefaultAsync(o => o.Code == (string)code, ct);
+
+        return record is null ? null : OrderMapper.ToDomain(record);
     }
 
     public async Task AddAsync(Order order, CancellationToken ct)
-    {
-        await dbContext.Orders.AddAsync(order, ct);
-    }
+        => await dbContext.Orders.AddAsync(OrderMapper.ToRecord(order), ct);
 
     public void Update(Order order)
-    {
-        dbContext.Orders.Update(order);
-    }
+        => dbContext.Orders.Update(OrderMapper.ToRecord(order));
 }
+```
 
-// Usage with Unit of Work
-public class OrderService(
-    IOrderRepository orderRepository,
-    IUnitOfWorkFactory uowFactory)
+Services and handlers only depend on the interface:
+
+```csharp
+public class OrderService(IOrderRepository orderRepository, IUnitOfWorkFactory uowFactory)
 {
-    public async Task CreateOrder(CreateOrderCommand command)
+    public async Task CreateOrderAsync(CreateOrderCommand command, CancellationToken ct)
     {
         await using var uow = uowFactory.CreateTransactional();
         
-        var order = new Order(command.Items);
-        await orderRepository.AddAsync(order, CancellationToken.None);
+        var order = Order.Create(command.Items);
+        await orderRepository.AddAsync(order, ct);
         
-        await uow.SaveChanges();
-        await uow.Commit();
+        await uow.SaveChanges(ct);
+        await uow.Commit(ct);
     }
 }
 ```
@@ -402,32 +469,43 @@ public class OrderService(
 
 ### ✅ DO
 
-1. **Use transactional UoW for commands:**
+1. **Keep record models `internal`** — persistence types must not leak into the application or domain layers:
    ```csharp
-   await using var uow = uowFactory.CreateTransactional();
-   // Make changes
-   await uow.SaveChanges();
-   await uow.Commit();  // Explicit commit
+   // Good
+   internal sealed record OrderRecord(long Id, string Code, long CustomerId);
+   internal DbSet<OrderRecord> Orders => Set<OrderRecord>();
    ```
 
-2. **Dispatch domain events AFTER commit:**
+2. **Keep `DbContext` inside repositories** — services and handlers inject `IXRepository`, never `DbContext`:
    ```csharp
-   await uow.Commit();
+   // Good — handler depends only on the repository interface
+   public class CreateOrderHandler(IUnitOfWorkFactory uowFactory, IOrderRepository orderRepository) { }
+   
+   // Bad — handler reaches into the data layer directly
+   public class CreateOrderHandler(IUnitOfWorkFactory uowFactory, ApplicationDbContext dbContext) { }
+   ```
+
+3. **Map at the repository boundary** — repositories translate between the domain model and the record:
+   ```csharp
+   public async Task AddAsync(Order order, CancellationToken ct)
+       => await dbContext.Orders.AddAsync(OrderMapper.ToRecord(order), ct);
+   ```
+
+4. **Use transactional UoW for commands:**
+   ```csharp
+   await using var uow = uowFactory.CreateTransactional();
+   await orderRepository.AddAsync(order, ct);
+   await uow.SaveChanges(ct);
+   await uow.Commit(ct);
+   ```
+
+5. **Dispatch domain events AFTER commit:**
+   ```csharp
+   await uow.Commit(ct);
    await eventDispatcher.DispatchAsync(aggregate, ct);
    ```
 
-3. **Use no-tracking for read-only queries:**
-
-> The framework will automatically apply `AsNoTracking()` to all queries by default unless you explicitly disable it in
-> the options.
-
-   ```csharp
-   var orders = await dbContext.Orders
-       .AsNoTracking()  // Read-only performance boost
-       .ToListAsync();
-   ```
-
-4. **Enable detailed errors only in development:**
+6. **Enable detailed errors only in development:**
    ```json
    {
      "Aetherweave": {
@@ -441,43 +519,61 @@ public class OrderService(
 
 ### ❌ DON'T
 
-1. **Don't forget to commit transactions:**
+1. **Don't inject `DbContext` into services or handlers:**
+   ```csharp
+   // Bad - DbContext leaks out of the data layer
+   public class OrderService(ApplicationDbContext dbContext) { }
+   
+   // Good - depends on the abstraction
+   public class OrderService(IOrderRepository orderRepository) { }
+   ```
+
+2. **Don't expose record models outside the data project:**
+   ```csharp
+   // Bad - leaks persistence concern into the application layer
+   public async Task<OrderRecord?> GetByIdAsync(Id<Order> id, CancellationToken ct) { ... }
+   
+   // Good - return domain model; mapping stays in the repository
+   public async Task<Order?> GetByIdAsync(Id<Order> id, CancellationToken ct) { ... }
+   ```
+
+3. **Don't forget to commit transactions:**
    ```csharp
    // Bad - transaction rolls back!
    await using var uow = uowFactory.CreateTransactional();
-   await uow.SaveChanges();
+   await uow.SaveChanges(ct);
    // Forgot to call Commit()!
    
    // Good
    await using var uow = uowFactory.CreateTransactional();
-   await uow.SaveChanges();
-   await uow.Commit();  // ✅
+   await uow.SaveChanges(ct);
+   await uow.Commit(ct);  // ✅
    ```
 
-2. **Don't use transactions for queries:**
+4. **Don't use transactions for queries:**
    ```csharp
-   // Bad - unnecessary transaction
+   // Bad - unnecessary transaction overhead
    await using var uow = uowFactory.CreateTransactional();
-   var orders = await dbContext.Orders.ToListAsync();
+   var order = await orderRepository.GetByIdAsync(id, ct);
    
-   // Good - no UoW needed for queries
-   var orders = await dbContext.Orders.AsNoTracking().ToListAsync();
+   // Good - no UoW needed for reads
+   var order = await orderRepository.GetByIdAsync(id, ct);
    ```
 
-3. **Don't enable sensitive data logging in production:**
+5. **Don't enable sensitive data logging in production:**
    ```json
    // BAD in production - security risk!
    "EnableSensitiveDataLogging": true
    ```
 
-4. **Don't dispatch events before commit:**
+6. **Don't dispatch events before commit:**
    ```csharp
-   // Bad - events dispatched before data persisted!
+   // Bad - events dispatched before data is persisted!
    await eventDispatcher.DispatchAsync(order, ct);
-   await uow.Commit();
+   await uow.Commit(ct);
    
    // Good
-   await uow.Commit();
+   await uow.Commit(ct);
    await eventDispatcher.DispatchAsync(order, ct);
    ```
 
@@ -527,55 +623,62 @@ public class OrderService(
 
 ## Migration from Raw EF Core
 
-**Before (raw EF Core):**
+**Before (raw EF Core — single model, DbContext injected everywhere):**
 
 ```csharp
 public class OrderService(ApplicationDbContext dbContext)
 {
-    public async Task CreateOrder(Order order)
+    public async Task CreateOrderAsync(Order order, CancellationToken ct)
     {
-        using var transaction = await dbContext.Database.BeginTransactionAsync();
+        using var transaction = await dbContext.Database.BeginTransactionAsync(ct);
         try
         {
             dbContext.Orders.Add(order);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(ct);
             
             var invoice = new Invoice(order.Id);
             dbContext.Invoices.Add(invoice);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(ct);
             
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(ct);
         }
         catch
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(ct);
             throw;
         }
     }
 }
 ```
 
-**After (Aetherweave):**
+**After (Aetherweave — two models, DbContext hidden inside repositories):**
 
 ```csharp
+// Data layer: DbContext stays here
+internal sealed class OrderRepository(ApplicationDbContext dbContext) : IOrderRepository
+{
+    public async Task AddAsync(Order order, CancellationToken ct)
+        => await dbContext.Orders.AddAsync(OrderMapper.ToRecord(order), ct);
+}
+
+// Application layer: service only knows about the repository interface
 public class OrderService(
     IUnitOfWorkFactory uowFactory,
-    ApplicationDbContext dbContext)
+    IOrderRepository orderRepository,
+    IInvoiceRepository invoiceRepository)
 {
-    public async Task CreateOrder(Order order)
+    public async Task CreateOrderAsync(Order order, CancellationToken ct)
     {
         await using var uow = uowFactory.CreateTransactional();
         
-        dbContext.Orders.Add(order);
-        await uow.SaveChanges();
+        await orderRepository.AddAsync(order, ct);
+        await uow.SaveChanges(ct);
         
-        var invoice = new Invoice(order.Id);
-        dbContext.Invoices.Add(invoice);
-        await uow.SaveChanges();
+        await invoiceRepository.AddAsync(Invoice.For(order), ct);
+        await uow.SaveChanges(ct);
         
-        await uow.Commit();
-        // Auto-rollback if exception or forgot to commit
+        await uow.Commit(ct);
+        // Auto-rollback if an exception is thrown or Commit is never called
     }
 }
 ```
-

@@ -24,30 +24,32 @@ dotnet add package Zwedze.Aetherweave.SharedKernel
 
 ```csharp
 // Type-safe IDs prevent mixing different entity types
+// Factory method (prefered)
+var productId = Id<Product>.From(789);
+
+// casting is allowed
 var orderId = (Id<Order>)123L;
 var customerId = (Id<Customer>)456L;
-
 // orderId = customerId; // Compile error! ✅
-
-// Alternative: factory method (cleaner)
-var productId = Id<Product>.From(789);
 ```
 
 **Type-safe business codes:**
 
 ```csharp
 // Natural keys and business identifiers
+// Factory method (prefered)
+var invoiceCode = Code<Invoice>.From("INV-2024-12345");
+
+// casting is allowed
 var orderCode = (Code<Order>)"ORD-2024-001";
 var sku = (Code<Product>)"WIDGET-A1";
-
-// Alternative: factory method
-var invoiceCode = Code<Invoice>.From("INV-2024-12345");
+// orderCode = sku; // Compile error! ✅
 ```
 
 **Benefits:**
 
 - ✅ Compile-time type safety
-- ✅ No mixing IDs from different entities
+- ✅ No mixing IDs or Codes from different entities
 - ✅ Clear intent in code
 - ✅ Validation built-in (no zero/negative IDs, no null/empty codes)
 
@@ -56,7 +58,7 @@ var invoiceCode = Code<Invoice>.From("INV-2024-12345");
 **Define your domain aggregates:**
 
 ```csharp
-public class Order : AggregateRoot<Order>
+public sealed class Order : AggregateRoot<Order>
 {
     public decimal Total { get; private set; }
     public OrderStatus Status { get; private set; }
@@ -116,6 +118,7 @@ public record OrderItemAddedEvent(
 
 public record OrderCancelledEvent(Id<Order> OrderId, string Reason) : DomainEvent;
 ```
+> Recommended to expose the minimum required data and avoid complex payloads.
 
 **Raise events from aggregates:**
 
@@ -156,6 +159,7 @@ public class OrderService(
 
 **Define domain exceptions:**
 
+Mandatory to provide a business code and a message. But it is recommended to include additional context for the developer.
 ```csharp
 public class InsufficientStockException(int requested, int available) 
     : BusinessException(
@@ -241,22 +245,22 @@ public abstract class AggregateRootWithIdOnly<TEntity>(Id<TEntity> id) : IHasDom
 
 ```csharp
 var orderId = Id<Order>.From(123);
-long idValue = (long)orderId;  // Explicit cast to long
+long idValue = orderId;  // Implicit cast to long
 
 var orderCode = Code<Order>.From("ORD-001");
-string codeValue = (string)orderCode;  // Explicit cast to string
+string codeValue = orderCode;  // Implicit cast to string
 ```
 
 **From primitives:**
 
 ```csharp
-// Explicit cast
-var id = (Id<Order>)123L;
-var code = (Code<Order>)"ORD-001";
-
 // Factory method (recommended)
 var id2 = Id<Order>.From(123);
 var code2 = Code<Order>.From("ORD-001");
+
+// Explicit cast
+var id = (Id<Order>)123L;
+var code = (Code<Order>)"ORD-001";
 ```
 
 ### Domain Event Metadata
@@ -296,7 +300,7 @@ public class OrderSubmittedHandler : IDomainEventHandler<OrderSubmittedEvent>
 ### Typical Aggregate Structure
 
 ```csharp
-public class Order : AggregateRoot<Order>
+public sealed class Order : AggregateRoot<Order>
 {
     // 1. Private fields for encapsulation
     private readonly List<OrderItem> _items = [];
