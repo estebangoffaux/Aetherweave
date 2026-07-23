@@ -21,12 +21,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Duende.AccessTokenManagement" Version="4.2.0" />
+        <PackageReference Include="Duende.IdentityModel.OidcClient" Version="7.1.0" />
         <PackageReference Include="JetBrains.Annotations" Version="2025.2.4">
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.1"/>
-        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.1"/>
-        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.4"/>
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.4"/>
+        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.4"/>
         <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>

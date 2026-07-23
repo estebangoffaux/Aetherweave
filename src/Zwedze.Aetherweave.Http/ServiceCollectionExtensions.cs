@@ -1,4 +1,5 @@
-﻿using JetBrains.Annotations;
+﻿using Duende.AccessTokenManagement;
+using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -64,10 +65,78 @@ public static class ServiceCollectionExtensions
         return builder;
     }
 
+    [UsedImplicitly]
+    public static IServiceCollection AddAetherweaveOpenIdConnectAuthentication(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        string sectionName = "Aetherweave:Authentication")
+    {
+        var authenticationSection = configuration.GetSection(sectionName);
+        if (!authenticationSection.Exists())
+        {
+            throw new ConfigurationNotFoundException(sectionName);
+        }
+
+        RegisterClientCredentialsSchemes(services, authenticationSection.GetSection("ClientCredentials"));
+        RegisterPkceSchemes(services, authenticationSection.GetSection("Pkce"));
+
+        return services;
+    }
+
+    private static void RegisterClientCredentialsSchemes(IServiceCollection services, IConfigurationSection clientCredentialsSection)
+    {
+        var schemeSections = clientCredentialsSection.GetChildren().ToArray();
+        if (schemeSections.Length == 0)
+        {
+            return;
+        }
+
+        var tokenManagementBuilder = services.AddClientCredentialsTokenManagement();
+
+        foreach (var schemeSection in schemeSections)
+        {
+            var schemeName = schemeSection.Key;
+
+            services
+                .AddOptions<ClientCredentialsSchemeOptions>(schemeName)
+                .Bind(schemeSection)
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
+            tokenManagementBuilder.AddClient(
+                schemeName,
+                client =>
+                {
+                    var options = schemeSection.Get<ClientCredentialsSchemeOptions>()!;
+
+                    client.TokenEndpoint = new Uri(options.TokenEndpoint);
+                    client.ClientId = ClientId.Parse(options.ClientId);
+                    client.ClientSecret = ClientSecret.Parse(options.ClientSecret);
+
+                    if (!string.IsNullOrWhiteSpace(options.Scope))
+                    {
+                        client.Scope = Scope.Parse(options.Scope);
+                    }
+                });
+        }
+    }
+
+    private static void RegisterPkceSchemes(IServiceCollection services, IConfigurationSection pkceSection)
+    {
+        foreach (var schemeSection in pkceSection.GetChildren())
+        {
+            services
+                .AddOptions<PkceSchemeOptions>(schemeSection.Key)
+                .Bind(schemeSection)
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+        }
+    }
+
     extension(IHttpClientBuilder builder)
     {
         [UsedImplicitly]
-        public IHttpClientBuilder AddAetherweaveHandler<THandler>()
+        public IHttpClientBuilder WithHandler<THandler>()
             where THandler : DelegatingHandler
         {
             builder.Services.AddTransient<THandler>();
@@ -75,12 +144,30 @@ public static class ServiceCollectionExtensions
         }
 
         [UsedImplicitly]
-        public IHttpClientBuilder AddAetherweaveErrorHandler<TErrorHandler>()
+        public IHttpClientBuilder WithErrorHandler<TErrorHandler>()
             where TErrorHandler : class, IHttpErrorHandler
         {
             builder.Services.AddTransient<IHttpErrorHandler, TErrorHandler>();
             builder.Services.AddTransient<HttpErrorResponseHandler>();
             return builder.AddHttpMessageHandler<HttpErrorResponseHandler>();
+        }
+
+        [UsedImplicitly]
+        public IHttpClientBuilder WithClientCredentialsAuthentication(string schemeName)
+        {
+            return builder
+                .AddDefaultAccessTokenResiliency()
+                .AddClientCredentialsTokenHandler(ClientCredentialsClientName.Parse(schemeName));
+        }
+
+        [UsedImplicitly]
+        public IHttpClientBuilder WithUserAccessTokenAuthentication(string schemeName)
+        {
+            return builder.AddHttpMessageHandler(sp =>
+                new PkceAuthenticationHandler(
+                    sp.GetRequiredService<IOptionsMonitor<PkceSchemeOptions>>(),
+                    sp,
+                    schemeName));
         }
     }
 }
