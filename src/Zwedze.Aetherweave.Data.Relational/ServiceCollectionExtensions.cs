@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Zwedze.Aetherweave.Data.Relational.Exceptions;
+using Zwedze.Aetherweave.Core.Configurations;
 using Zwedze.Aetherweave.Data.Relational.UnitOfWork;
 
 namespace Zwedze.Aetherweave.Data.Relational;
@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
             bool addHealthCheck = true)
             where TDbContext : DbContext
         {
-            CreateOptions();
+            ConfigurationLoader.RegisterOptions<DataRelationalOptions>(services, configuration, sectionName);
 
             services.AddDbContext<TDbContext>((serviceProvider, dbContextOptions) =>
             {
@@ -56,22 +56,6 @@ public static class ServiceCollectionExtensions
             }
 
             return services;
-
-            void CreateOptions()
-            {
-                var section = configuration.GetSection(sectionName);
-                if (!section.Exists())
-                {
-                    throw new ConfigurationNotFoundException(sectionName);
-                }
-
-                // Register IOptions<DataRelationalOptions> in the DI container
-                services
-                    .AddOptions<DataRelationalOptions>()
-                    .Bind(section)
-                    .ValidateDataAnnotations()
-                    .ValidateOnStart();
-            }
         }
     }
 }

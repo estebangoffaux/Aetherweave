@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10"/>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="10.0.10"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.10" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Zwedze.Aetherweave.Core\Zwedze.Aetherweave.Core.csproj"/>
+        <ProjectReference Include="..\Zwedze.Aetherweave.Http\Zwedze.Aetherweave.Http.csproj" />
+    </ItemGroup>
+
+</Project>
