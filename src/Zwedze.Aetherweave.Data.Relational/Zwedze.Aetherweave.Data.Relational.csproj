@@ -21,14 +21,14 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="JetBrains.Annotations" Version="2025.2.4">
+        <PackageReference Include="JetBrains.Annotations" Version="2026.2.0">
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.1"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.1"/>
-        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.1"/>
-        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.1"/>
-        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.1"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.10" />
         <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -44,6 +44,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Zwedze.Aetherweave.Core\Zwedze.Aetherweave.Core.csproj" />
         <ProjectReference Include="..\Zwedze.Aetherweave.Data\Zwedze.Aetherweave.Data.csproj"/>
     </ItemGroup>
 

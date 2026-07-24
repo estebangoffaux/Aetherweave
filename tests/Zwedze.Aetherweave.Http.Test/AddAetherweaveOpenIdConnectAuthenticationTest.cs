@@ -2,7 +2,7 @@ using AwesomeAssertions;
 using Duende.AccessTokenManagement;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Zwedze.Aetherweave.Http.Exceptions;
+using Zwedze.Aetherweave.Core.Configurations.Exceptions;
 
 namespace Zwedze.Aetherweave.Http.Test;
 
@@ -14,7 +14,7 @@ public class AddAetherweaveOpenIdConnectAuthenticationTest
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder().Build();
 
-        var act = () => services.AddAetherweaveOpenIdConnectAuthentication(configuration);
+        var act = () => services.AddAetherweaveOidcAuthentication(configuration);
 
         act.Should().Throw<ConfigurationNotFoundException>();
     }
@@ -31,7 +31,7 @@ public class AddAetherweaveOpenIdConnectAuthenticationTest
             })
             .Build();
 
-        services.AddAetherweaveOpenIdConnectAuthentication(configuration);
+        services.AddAetherweaveOidcAuthentication(configuration);
         var provider = services.BuildServiceProvider();
 
         provider.GetService<IClientCredentialsTokenManager>().Should().BeNull();
@@ -50,7 +50,7 @@ public class AddAetherweaveOpenIdConnectAuthenticationTest
             })
             .Build();
 
-        services.AddAetherweaveOpenIdConnectAuthentication(configuration);
+        services.AddAetherweaveOidcAuthentication(configuration);
         var provider = services.BuildServiceProvider();
 
         provider.GetService<IClientCredentialsTokenManager>().Should().NotBeNull();

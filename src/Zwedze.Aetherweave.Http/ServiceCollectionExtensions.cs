@@ -4,83 +4,78 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Zwedze.Aetherweave.Core.Configurations;
+using Zwedze.Aetherweave.Core.Configurations.Exceptions;
 using Zwedze.Aetherweave.Http.Configuration;
-using Zwedze.Aetherweave.Http.Exceptions;
 using Zwedze.Aetherweave.Http.Handlers;
 
 namespace Zwedze.Aetherweave.Http;
 
 public static class ServiceCollectionExtensions
 {
-    [UsedImplicitly]
-    public static IHttpClientBuilder AddAetherweaveHttpClient<TClient, TImplementation>(
-        this IServiceCollection services,
-        IConfiguration configuration,
-        string clientName,
-        string sectionName = "Aetherweave:HttpClients")
-        where TClient : class
-        where TImplementation : class, TClient
+    extension(IServiceCollection services)
     {
-        var fullSectionName = $"{sectionName}:{clientName}";
-
-        var clientSection = configuration.GetSection(fullSectionName);
-        if (!clientSection.Exists())
+        [UsedImplicitly]
+        public IHttpClientBuilder AddAetherweaveHttpClient<TInterface, TImplementation>(
+            IConfiguration configuration,
+            string clientName,
+            string sectionName = "Aetherweave:HttpClients")
+            where TInterface : class
+            where TImplementation : class, TInterface
         {
-            throw new ConfigurationNotFoundException(fullSectionName);
-        }
+            var fullSectionName = $"{sectionName}:{clientName}";
 
-        // Register options with validation
-        services
-            .AddOptions<HttpClientOptions>(clientName)
-            .Bind(clientSection)
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
+            ConfigurationLoader.RegisterOptions<HttpClientOptions>(services, configuration, fullSectionName, clientName);
 
-        // Configure HttpClient
-        var builder = services.AddHttpClient<TClient, TImplementation>(
-            clientName,
-            (sp, client) =>
+            // Configure HttpClient
+            var builder = services.AddHttpClient<TInterface, TImplementation>(
+                clientName,
+                (sp, client) =>
+                {
+                    var options = sp.GetRequiredService<IOptionsMonitor<HttpClientOptions>>().Get(clientName);
+
+                    client.BaseAddress = new Uri(options.BaseAddress);
+                    client.Timeout = options.Timeout;
+                });
+
+            // Add handlers conditionally based on options
+            builder.AddHttpMessageHandler(sp =>
             {
                 var options = sp.GetRequiredService<IOptionsMonitor<HttpClientOptions>>().Get(clientName);
-
-                client.BaseAddress = new Uri(options.BaseAddress);
-                client.Timeout = options.Timeout;
+                var logger = sp.GetRequiredService<ILogger<ProfilingHandler>>();
+                return new ProfilingHandler(logger, options.EnableProfiling);
             });
 
-        // Add handlers conditionally based on options
-        builder.AddHttpMessageHandler(sp =>
-        {
-            var options = sp.GetRequiredService<IOptionsMonitor<HttpClientOptions>>().Get(clientName);
-            var logger = sp.GetRequiredService<ILogger<ProfilingHandler>>();
-            return new ProfilingHandler(logger, options.EnableProfiling);
-        });
+            builder.AddHttpMessageHandler(sp =>
+            {
+                var options = sp.GetRequiredService<IOptionsMonitor<HttpClientOptions>>().Get(clientName);
+                var logger = sp.GetRequiredService<ILogger<ContentTracingHandler>>();
+                return new ContentTracingHandler(logger, options.EnableContentTracing, options.MaxContentLogSize);
+            });
 
-        builder.AddHttpMessageHandler(sp =>
-        {
-            var options = sp.GetRequiredService<IOptionsMonitor<HttpClientOptions>>().Get(clientName);
-            var logger = sp.GetRequiredService<ILogger<ContentTracingHandler>>();
-            return new ContentTracingHandler(logger, options.EnableContentTracing, options.MaxContentLogSize);
-        });
-
-        return builder;
-    }
-
-    [UsedImplicitly]
-    public static IServiceCollection AddAetherweaveOpenIdConnectAuthentication(
-        this IServiceCollection services,
-        IConfiguration configuration,
-        string sectionName = "Aetherweave:Authentication")
-    {
-        var authenticationSection = configuration.GetSection(sectionName);
-        if (!authenticationSection.Exists())
-        {
-            throw new ConfigurationNotFoundException(sectionName);
+            return builder;
         }
 
-        RegisterClientCredentialsSchemes(services, authenticationSection.GetSection("ClientCredentials"));
-        RegisterPkceSchemes(services, authenticationSection.GetSection("Pkce"));
+        [UsedImplicitly]
+        public IServiceCollection AddAetherweaveOidcAuthentication(
+            IConfiguration configuration,
+            string sectionName = "Aetherweave:Authentication")
+        {
+            var authenticationSection = configuration.GetSection(sectionName);
+            if (!authenticationSection.Exists())
+            {
+                throw new ConfigurationNotFoundException(sectionName);
+            }
 
-        return services;
+            // Client credentials
+            RegisterClientCredentialsSchemes(services, authenticationSection.GetSection("ClientCredentials"));
+
+            // PKCE
+            var pkceSection = authenticationSection.GetSection("Pkce");
+            ConfigurationLoader.RegisterOptions<PkceSchemeOptions>(services, pkceSection.GetChildren());
+
+            return services;
+        }
     }
 
     private static void RegisterClientCredentialsSchemes(IServiceCollection services, IConfigurationSection clientCredentialsSection)
@@ -97,12 +92,6 @@ public static class ServiceCollectionExtensions
         {
             var schemeName = schemeSection.Key;
 
-            services
-                .AddOptions<ClientCredentialsSchemeOptions>(schemeName)
-                .Bind(schemeSection)
-                .ValidateDataAnnotations()
-                .ValidateOnStart();
-
             tokenManagementBuilder.AddClient(
                 schemeName,
                 client =>
@@ -118,18 +107,6 @@ public static class ServiceCollectionExtensions
                         client.Scope = Scope.Parse(options.Scope);
                     }
                 });
-        }
-    }
-
-    private static void RegisterPkceSchemes(IServiceCollection services, IConfigurationSection pkceSection)
-    {
-        foreach (var schemeSection in pkceSection.GetChildren())
-        {
-            services
-                .AddOptions<PkceSchemeOptions>(schemeSection.Key)
-                .Bind(schemeSection)
-                .ValidateDataAnnotations()
-                .ValidateOnStart();
         }
     }
 
@@ -163,8 +140,8 @@ public static class ServiceCollectionExtensions
         [UsedImplicitly]
         public IHttpClientBuilder WithUserAccessTokenAuthentication(string schemeName)
         {
-            return builder.AddHttpMessageHandler(sp =>
-                new PkceAuthenticationHandler(
+            return builder.AddHttpMessageHandler(
+                sp => new PkceAuthenticationHandler(
                     sp.GetRequiredService<IOptionsMonitor<PkceSchemeOptions>>(),
                     sp,
                     schemeName));

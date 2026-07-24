@@ -13,6 +13,7 @@
         <Description>Type-safe HttpClient configuration for Aetherweave, featuring built-in profiling, content tracing, and centralized error handling middleware.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <ItemGroup>
@@ -23,12 +24,12 @@
     <ItemGroup>
         <PackageReference Include="Duende.AccessTokenManagement" Version="4.2.0" />
         <PackageReference Include="Duende.IdentityModel.OidcClient" Version="7.1.0" />
-        <PackageReference Include="JetBrains.Annotations" Version="2025.2.4">
+        <PackageReference Include="JetBrains.Annotations" Version="2026.2.0">
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.4"/>
-        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.4"/>
-        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.4"/>
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.10" />
         <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -41,6 +42,10 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Zwedze.Aetherweave.Core\Zwedze.Aetherweave.Core.csproj" />
     </ItemGroup>
 
 </Project>
