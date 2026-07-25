@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "test-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "tests/Zwedze.Aetherweave.Test.Api/Zwedze.Aetherweave.Test.Api.csproj", "--launch-profile", "https"],
+      "port": 7055
+    },
+    {
+      "name": "test-blazor",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "tests/Zwedze.Aetherweave.Test.Blazor/Zwedze.Aetherweave.Test.Blazor.csproj", "--launch-profile", "https"],
+      "port": 7116
+    }
+  ]
+}

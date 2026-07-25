@@ -187,6 +187,102 @@ Logs response content when `EnableContentTracing` is `true`:
 **Security Warning:** ⚠️ Never enable `EnableContentTracing` in production with sensitive data (passwords, credit cards,
 etc.)!
 
+## Authentication
+
+Two independent OAuth2/OIDC authentication flows can be attached per `HttpClient`, backed directly by
+Duende's own libraries (`Duende.AccessTokenManagement` and `Duende.IdentityModel.OidcClient`) rather
+than a custom re-implementation:
+
+- **Client credentials** — service-to-service, no user involved. Token acquisition, caching, and
+  renewal-on-401 are handled entirely by `Duende.AccessTokenManagement`.
+- **PKCE (user-delegated)** — an interactive Authorization Code + PKCE flow for native/console/desktop
+  clients. Token attachment and refresh-on-401 are handled by
+  `Duende.IdentityModel.OidcClient`'s own `RefreshTokenDelegatingHandler`.
+
+Both are opt-in per `HttpClient` via a fluent call — nothing is enabled globally.
+
+### 1. Register named schemes once
+
+```json
+{
+  "Aetherweave": {
+    "Authentication": {
+      "ClientCredentials": {
+        "orders-api": {
+          "TokenEndpoint": "https://identity.example.com/connect/token",
+          "ClientId": "orders-service",
+          "ClientSecret": "secret",
+          "Scope": "orders.api"
+        }
+      },
+      "Pkce": {
+        "desktop-app": {
+          "Authority": "https://identity.example.com",
+          "ClientId": "desktop-client",
+          "RedirectUri": "http://127.0.0.1:7890/callback",
+          "Scope": "openid profile offline_access orders.api"
+        }
+      }
+    }
+  }
+}
+```
+
+```csharp
+services.AddAetherweaveOpenIdConnectAuthentication(configuration);
+```
+
+Both `ClientCredentials` and `Pkce` subsections are optional and independent — configure zero, one, or
+many named schemes under each.
+
+### 2. Opt in per HttpClient
+
+```csharp
+services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(configuration, "OrderService")
+    .AddAetherweaveClientCredentialsAuthentication("orders-api")
+    .AddAetherweaveErrorHandler<OrderServiceErrorHandler>();
+```
+
+For PKCE, the host app must also register a keyed `IBrowser` (from `Duende.IdentityModel.OidcClient.Browser`)
+per scheme — this is inherently host-specific (system browser launcher, embedded webview, etc.):
+
+```csharp
+services.AddKeyedSingleton<IBrowser>("desktop-app", (sp, _) => new MySystemBrowserLauncher());
+
+services.AddAetherweaveHttpClient<IProfileServiceClient, ProfileServiceClient>(configuration, "ProfileService")
+    .AddAetherweaveUserAccessTokenAuthentication("desktop-app");
+```
+
+The first call made through `ProfileService` triggers the interactive PKCE login automatically (via the
+registered `IBrowser`) — no manual login step is required. From then on, token attachment and
+refresh-on-401 are handled transparently by the `RefreshTokenDelegatingHandler` Duende's `OidcClient`
+returns from the login.
+
+### Behavior notes
+
+- **Client-credentials failures don't throw.** If `Duende.AccessTokenManagement` can't acquire a token,
+  it logs a warning and sends the request *without* a token rather than throwing — this is Duende's own
+  documented behavior, not something this library changes.
+- **PKCE login is per-HttpClient, not shared across clients.** Each `HttpClient` wired to a PKCE scheme
+  performs its own independent interactive login and holds its own refresh token. If two typed clients
+  reference the same scheme name, each triggers its own separate browser login the first time it's
+  used. Sharing a single login across clients isn't supported, since many OIDC servers rotate/invalidate
+  refresh tokens on each use — two independently-refreshing clients on "the same" login would eventually
+  invalidate each other.
+- **PKCE is for native/desktop clients only** — this project has no ASP.NET Core dependency, so it
+  cannot participate in cookie-based web app OIDC login. For an ASP.NET Core web app that needs
+  delegated user tokens, use `Duende.AccessTokenManagement.OpenIdConnect` directly instead.
+- **Pick exactly one auth method per HttpClient.** Chaining both fluent calls on the same builder isn't
+  guarded against — the second handler's `Authorization` header write simply wins.
+- **Never commit `ClientSecret` values** — use environment-specific configuration or a secret store.
+
+### New exceptions
+
+| Exception | When |
+|---|---|
+| `AetherweaveAuthenticationException` | The PKCE interactive login fails, or succeeds without issuing a refresh token (check that `offline_access` is in `Scope`) |
+| `PkceBrowserNotRegisteredException` | A PKCE login is attempted but no keyed `IBrowser` was registered for that scheme |
+
 ## Advanced Usage
 
 ### Adding Custom Handlers
