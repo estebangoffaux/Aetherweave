@@ -1,4 +1,4 @@
-using Zwedze.Aetherweave.Security;
+using Zwedze.Aetherweave.Security.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 

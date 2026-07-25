@@ -2,9 +2,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Zwedze.Aetherweave.Core.Configurations;
-using Zwedze.Aetherweave.Security.Configuration;
+using Zwedze.Aetherweave.Security.Jwt.Configuration;
 
-namespace Zwedze.Aetherweave.Security;
+namespace Zwedze.Aetherweave.Security.Jwt;
 
 public static class ServiceCollectionExtensions
 {
