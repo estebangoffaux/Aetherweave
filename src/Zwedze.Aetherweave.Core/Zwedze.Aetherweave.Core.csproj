@@ -4,6 +4,16 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+
+        <RepositoryUrl>https://github.com/estebangoffaux/Aetherweave</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageIcon>Icon.png</PackageIcon>
+        <Authors>Esteban Goffaux</Authors>
+        <IsPackable>true</IsPackable>
+        <Description>Shared ressources used by other packages. Like exceptions or other primitives.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
 
     <ItemGroup>

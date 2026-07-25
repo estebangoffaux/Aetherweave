@@ -4,7 +4,15 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <RootNamespace>Zwedze.Aetherweave.Security</RootNamespace>
+
+        <RepositoryUrl>https://github.com/estebangoffaux/Aetherweave</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageIcon>Icon.png</PackageIcon>
+        <Authors>Esteban Goffaux</Authors>
+        <IsPackable>true</IsPackable>
+        <Description>Manage JWT integration for api security.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>

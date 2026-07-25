@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Zwedze.Aetherweave.Security.Configuration;
+namespace Zwedze.Aetherweave.Security.Jwt.Configuration;
 
 public sealed record AetherweaveJwtBearerOptions
 {
