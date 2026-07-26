@@ -187,68 +187,17 @@ Logs response content when `EnableContentTracing` is `true`:
 **Security Warning:** ⚠️ Never enable `EnableContentTracing` in production with sensitive data (passwords, credit cards,
 etc.)!
 
-## Authentication (backend-to-backend)
+## Authentication
 
-This package covers exactly one authentication case: **your service calling other APIs as itself**, with
-no user involved (OAuth2 client credentials). Token acquisition, caching, and renewal-on-401 are handled
-entirely by `Duende.AccessTokenManagement` — not a custom re-implementation.
-
-For the other two Aetherweave auth cases, see their own packages:
+This package is purely generic `HttpClient` plumbing — it has no knowledge of any authentication flow.
+For auth, use one of the dedicated Aetherweave Security packages, each of which builds on top of
+`AddAetherweaveHttpClient`/`WithHandler`/`WithErrorHandler` above:
 
 | Case | Package |
 |---|---|
 | Protecting your own API by validating incoming JWTs | `Zwedze.Aetherweave.Security.Jwt` |
-| Interactive user login for a Blazor WebAssembly UI | `Zwedze.Aetherweave.Security.Oidc` |
-| Interactive user login for a native/desktop/CLI app | `Zwedze.Aetherweave.Security.Oidc.Native` |
-
-A service can be a client of many different APIs, each behind a different identity provider — register
-one named scheme per downstream API.
-
-### 1. Register named schemes once
-
-```json
-{
-  "Aetherweave": {
-    "Security": {
-      "ClientCredentials": {
-        "orders-api": {
-          "TokenEndpoint": "https://identity.example.com/connect/token",
-          "ClientId": "orders-service",
-          "ClientSecret": "secret",
-          "Scope": "orders.api"
-        },
-        "payments-api": {
-          "TokenEndpoint": "https://payments-identity.example.com/connect/token",
-          "ClientId": "orders-service",
-          "ClientSecret": "another-secret"
-        }
-      }
-    }
-  }
-}
-```
-
-```csharp
-services.AddAetherweaveClientCredentialsAuthentication(configuration);
-```
-
-Configure zero, one, or many named schemes — nothing is registered globally until an `HttpClient` opts
-into a scheme.
-
-### 2. Opt in per HttpClient
-
-```csharp
-services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(configuration, "OrderService")
-    .WithClientCredentialsAuthentication("orders-api")
-    .WithErrorHandler<OrderServiceErrorHandler>();
-```
-
-### Behavior notes
-
-- **Failures don't throw.** If `Duende.AccessTokenManagement` can't acquire a token, it logs a warning
-  and sends the request *without* a token rather than throwing — this is Duende's own documented
-  behavior, not something this library changes.
-- **Never commit `ClientSecret` values** — use environment-specific configuration or a secret store.
+| Backend-to-backend — your service calling other APIs as itself (OAuth2 client credentials) | `Zwedze.Aetherweave.Security.ClientCredentials` |
+| Interactive user login for a Blazor WebAssembly UI (Authorization Code + PKCE) | `Zwedze.Aetherweave.Security.Oidc` |
 
 ## Advanced Usage
 

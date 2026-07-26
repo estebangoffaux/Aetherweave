@@ -8,7 +8,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Zwedze.Aetherweave.Security.Oidc\Zwedze.Aetherweave.Security.Oidc.csproj" />
+        <ProjectReference Include="..\..\src\Zwedze.Aetherweave.Http\Zwedze.Aetherweave.Http.csproj" />
+        <ProjectReference Include="..\..\src\Zwedze.Aetherweave.Security.ClientCredentials\Zwedze.Aetherweave.Security.ClientCredentials.csproj" />
     </ItemGroup>
 
     <ItemGroup>

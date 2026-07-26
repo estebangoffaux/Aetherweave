@@ -14,33 +14,31 @@ Zwedze.Aetherweave.sln
 │   ├── Zwedze.Aetherweave.Data                  # IUnitOfWork + IUnitOfWorkFactory abstractions only
 │   ├── Zwedze.Aetherweave.Data.Relational       # EF Core UoW implementation, auto-config, health checks
 │   ├── Zwedze.Aetherweave.Core                  # Shared config binding + startup validation used by other packages
-│   ├── Zwedze.Aetherweave.Http                  # Typed HttpClient: profiling, content tracing, error handling, client-credentials auth
+│   ├── Zwedze.Aetherweave.Http                  # Typed HttpClient: profiling, content tracing, error handling (no auth)
 │   ├── Zwedze.Aetherweave.Security.Jwt          # Protect your own API: validate incoming JWTs against one IDP
+│   ├── Zwedze.Aetherweave.Security.ClientCredentials  # Backend-to-backend: your service as its own OAuth2 client
 │   ├── Zwedze.Aetherweave.Security.Oidc         # Interactive user login (Authorization Code + PKCE) for Blazor WebAssembly
-│   ├── Zwedze.Aetherweave.Security.Oidc.Native  # Interactive user login (Authorization Code + PKCE) for native/desktop/CLI apps
 │   ├── Zwedze.Aetherweave.IdentityGenerators    # Snowflake-based distributed ID generation
 │   ├── Zwedze.Aetherweave.Analyzers             # Roslyn analyzers: Id/Code duplication detection (compile-time errors)
 │   └── Zwedze.Aetherweave.Generators            # Source generator: [SmartEnum] boilerplate generation
 └── tests/
-    ├── Zwedze.Aetherweave.Generators.Test               # NUnit tests for SmartEnumGenerator
-    ├── Zwedze.Aetherweave.Http.Test                     # NUnit tests for Http (client-credentials, options)
-    └── Zwedze.Aetherweave.Security.Oidc.Native.Test     # NUnit tests for Security.Oidc.Native options
+    ├── Zwedze.Aetherweave.Generators.Test                    # NUnit tests for SmartEnumGenerator
+    └── Zwedze.Aetherweave.Security.ClientCredentials.Test    # NUnit tests for Security.ClientCredentials
 ```
 
-**Solution folders in the .sln:** Design (Application + SharedKernel), Data, Http, Security (Core, Security.Jwt, Security.Oidc, Security.Oidc.Native), IdGenerator, Common (Analyzers + Generators + Test), IntegrationTest (Test.Api, Test.Blazor, Test.Console).
+**Solution folders in the .sln:** Design (Application + SharedKernel), Data, Http, Security (Core, Security.Jwt, Security.ClientCredentials, Security.Oidc), IdGenerator, Common (Analyzers + Generators + Test), IntegrationTest (Test.Api, Test.Blazor, Test.Console).
 
 ## Authentication model — which package for which case
 
-Aetherweave splits authentication into four packages with no overlap. Pick by **what you're building**, not by protocol name:
+Aetherweave splits authentication into three packages with no overlap. Pick by **what you're building**, not by protocol name:
 
 | You are... | Use | Notes |
 |---|---|---|
 | Protecting your own API | `Security.Jwt` | Validates incoming JWTs against one IDP. Works identically no matter which flow issued the token (client-credentials or a PKCE user flow) — this package doesn't care. |
-| Calling other APIs as your service (no user) | `Http`'s client-credentials auth | Backend-to-backend. A service can call many downstream APIs behind different IDPs — one named scheme per API. |
+| Calling other APIs as your service (no user) | `Security.ClientCredentials` | Backend-to-backend. A service can call many downstream APIs behind different IDPs — one named scheme per API. |
 | Logging a user in from a Blazor WebAssembly UI | `Security.Oidc` | Authorization Code + PKCE, browser-hosted. |
-| Logging a user in from a native/desktop/CLI app | `Security.Oidc.Native` | Authorization Code + PKCE, launches a system browser via a host-supplied `IBrowser`. |
 
-`Security.Jwt`, `Security.Oidc`, and `Security.Oidc.Native` all live under the `Aetherweave:Security:*` configuration prefix; `Http`'s client-credentials section also moved there (`Aetherweave:Security:ClientCredentials`) for consistency.
+All three live under the `Aetherweave:Security:*` configuration prefix. `Http` itself carries no auth code and no auth-related dependency — it's the generic `HttpClient` plumbing that `Security.ClientCredentials` and `Security.Oidc` both build on.
 
 ## Project dependency graph
 
@@ -51,8 +49,8 @@ Data          ←─── Data.Relational
 
 Core          ←─── Http
 Core          ←─── Security.Jwt
-Core          ←─── Security.Oidc         ←── Http
-Core          ←─── Security.Oidc.Native  ←── Http
+Core          ←─── Security.ClientCredentials  ←── Http
+Core          ←─── Security.Oidc               ←── Http
 
 Analyzers              (standalone, netstandard2.0)
 Generators             (standalone, netstandard2.0; consuming project needs SharedKernel)
@@ -227,7 +225,7 @@ Uses C# 14 `extension(IServiceCollection services)` syntax internally.
 
 **README:** [`src/Zwedze.Aetherweave.Http/README.md`](src/Zwedze.Aetherweave.Http/README.md)
 
-Type-safe, configuration-driven `HttpClient` setup, plus backend-to-backend (client-credentials) authentication — see [Authentication model](#authentication-model--which-package-for-which-case) above for how this fits with the other Security.* packages.
+Type-safe, configuration-driven `HttpClient` setup. Purely generic — no auth code, no auth-related package dependency. See [Authentication model](#authentication-model--which-package-for-which-case) above for the packages that build auth on top of this one.
 
 ### Registration
 
@@ -242,9 +240,8 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
 Fluent extensions on `IHttpClientBuilder` (C# 14 extension syntax):
 
 ```csharp
-builder.WithHandler<CorrelationIdHandler>()               // custom DelegatingHandler
-       .WithErrorHandler<OrderServiceErrorHandler>()       // implements IHttpErrorHandler
-       .WithClientCredentialsAuthentication("orders-api"); // named client-credentials scheme
+builder.WithHandler<CorrelationIdHandler>()         // custom DelegatingHandler
+       .WithErrorHandler<OrderServiceErrorHandler>(); // implements IHttpErrorHandler
 ```
 
 ### Configuration (`Aetherweave:HttpClients:{clientName}`)
@@ -262,17 +259,6 @@ builder.WithHandler<CorrelationIdHandler>()               // custom DelegatingHa
 - **`ProfilingHandler`** — active when `EnableProfiling = true`; minimal overhead.
 - **`ContentTracingHandler`** — active when `EnableContentTracing = true`; reads full response body into memory — development only.
 - **`HttpErrorResponseHandler`** — active when `WithErrorHandler<T>()` is called; delegates to `IHttpErrorHandler.HandleError`.
-
-### Client-credentials authentication (`Aetherweave:Security:ClientCredentials:{schemeName}`)
-
-```csharp
-services.AddAetherweaveClientCredentialsAuthentication(configuration);
-
-services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(configuration, "OrderService")
-    .WithClientCredentialsAuthentication("orders-api");
-```
-
-Backed by `Duende.AccessTokenManagement`. Register one named scheme per downstream API — each can point at a different IDP. Token acquisition/caching/renewal is handled entirely by Duende; a failed acquisition logs a warning and sends the request without a token rather than throwing.
 
 ---
 
@@ -315,6 +301,23 @@ Remember to also call `app.UseAuthentication()`/`app.UseAuthorization()` and add
 
 ---
 
+## Zwedze.Aetherweave.Security.ClientCredentials
+
+**README:** [`src/Zwedze.Aetherweave.Security.ClientCredentials/README.md`](src/Zwedze.Aetherweave.Security.ClientCredentials/README.md)
+
+Backend-to-backend: your service calling other APIs as itself (OAuth2 client credentials), no user involved. Built on `Duende.AccessTokenManagement`.
+
+```csharp
+services.AddAetherweaveClientCredentialsAuthentication(configuration); // reads Aetherweave:Security:ClientCredentials
+
+services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(configuration, "OrderService")
+    .WithClientCredentialsAuthentication("orders-api");
+```
+
+Register one named scheme per downstream API — each can point at a different IDP. Token acquisition/caching/renewal is handled entirely by Duende; a failed acquisition logs a warning and sends the request without a token rather than throwing.
+
+---
+
 ## Zwedze.Aetherweave.Security.Oidc
 
 **README:** [`src/Zwedze.Aetherweave.Security.Oidc/README.md`](src/Zwedze.Aetherweave.Security.Oidc/README.md)
@@ -328,25 +331,6 @@ builder.Services
     .AddAetherweaveOidcHttpClients(authorizedUrls: ["https://api.example.com"])
     .AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(builder.Configuration, "OrderService");
 ```
-
----
-
-## Zwedze.Aetherweave.Security.Oidc.Native
-
-**README:** [`src/Zwedze.Aetherweave.Security.Oidc.Native/README.md`](src/Zwedze.Aetherweave.Security.Oidc.Native/README.md)
-
-Interactive user login (Authorization Code + PKCE, RFC 8252) for **native/desktop/CLI** apps that can launch a system browser — the native-hosted sibling of `Security.Oidc`. Built directly on `Duende.IdentityModel.OidcClient`.
-
-```csharp
-services.AddAetherweaveNativeOidcAuthentication(configuration); // reads Aetherweave:Security:Oidc:Native
-
-services.AddKeyedSingleton<IBrowser>("desktop-app", (sp, _) => new MySystemBrowserLauncher());
-
-services.AddAetherweaveHttpClient<IProfileServiceClient, ProfileServiceClient>(configuration, "ProfileService")
-    .WithNativeOidcAuthentication("desktop-app");
-```
-
-The host app must register a keyed `IBrowser` per scheme — launching a browser is inherently host-specific. Login is per-`HttpClient`, not shared: each client wired to a scheme performs its own independent login and holds its own refresh token.
 
 ---
 

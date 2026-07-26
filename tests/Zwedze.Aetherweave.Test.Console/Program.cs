@@ -1,17 +1,17 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Zwedze.Aetherweave.Security.Oidc;
+using Zwedze.Aetherweave.Http;
+using Zwedze.Aetherweave.Security.ClientCredentials;
 using Zwedze.Aetherweave.Test.Console;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddHostedService<TestHostedService>();
 
-builder.Services.AddAetherweaveOidcClientAuthentication(builder.Configuration);
+builder.Services.AddAetherweaveClientCredentialsAuthentication(builder.Configuration);
 
 builder.Services
-    .AddAetherweaveOidcHttpClients(["https://localhost:7055"])
-    .AddAetherweaveHttpClient<WeatherForecastClient, WeatherForecastClient>(builder.Configuration, "WeatherClient");
-
+    .AddAetherweaveHttpClient<WeatherForecastClient, WeatherForecastClient>(builder.Configuration, "WeatherClient")
+    .WithClientCredentialsAuthentication("test-console");
 
 var app = builder.Build();
 await app.RunAsync();

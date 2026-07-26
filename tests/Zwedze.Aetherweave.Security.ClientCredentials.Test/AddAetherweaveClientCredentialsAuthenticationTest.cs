@@ -4,7 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Zwedze.Aetherweave.Core.Configurations.Exceptions;
 
-namespace Zwedze.Aetherweave.Http.Test;
+namespace Zwedze.Aetherweave.Security.ClientCredentials.Test;
 
 public class AddAetherweaveClientCredentialsAuthenticationTest
 {
