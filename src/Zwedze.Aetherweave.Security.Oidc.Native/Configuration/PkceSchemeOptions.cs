@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Zwedze.Aetherweave.Http.Configuration;
+namespace Zwedze.Aetherweave.Security.Oidc.Native.Configuration;
 
 public sealed record PkceSchemeOptions : IValidatableObject
 {

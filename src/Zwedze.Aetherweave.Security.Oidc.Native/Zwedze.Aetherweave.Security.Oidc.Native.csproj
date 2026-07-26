@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -10,7 +10,7 @@
         <PackageIcon>Icon.png</PackageIcon>
         <Authors>Esteban Goffaux</Authors>
         <IsPackable>true</IsPackable>
-        <Description>Type-safe HttpClient configuration for Aetherweave, featuring built-in profiling, content tracing, and centralized error handling middleware.</Description>
+        <Description>Interactive Authorization Code + PKCE login for native, desktop, and CLI applications that can launch a system browser.</Description>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -22,7 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Duende.AccessTokenManagement" Version="4.2.0" />
+        <PackageReference Include="Duende.IdentityModel.OidcClient" Version="7.1.0" />
         <PackageReference Include="JetBrains.Annotations" Version="2026.2.0">
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
@@ -44,7 +44,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Zwedze.Aetherweave.Core\Zwedze.Aetherweave.Core.csproj" />
+        <ProjectReference Include="..\Zwedze.Aetherweave.Core\Zwedze.Aetherweave.Core.csproj" />
+        <ProjectReference Include="..\Zwedze.Aetherweave.Http\Zwedze.Aetherweave.Http.csproj" />
     </ItemGroup>
 
 </Project>

@@ -57,22 +57,17 @@ public static class ServiceCollectionExtensions
         }
 
         [UsedImplicitly]
-        public IServiceCollection AddAetherweaveOidcAuthentication(
+        public IServiceCollection AddAetherweaveClientCredentialsAuthentication(
             IConfiguration configuration,
-            string sectionName = "Aetherweave:Authentication")
+            string sectionName = "Aetherweave:Security:ClientCredentials")
         {
-            var authenticationSection = configuration.GetSection(sectionName);
-            if (!authenticationSection.Exists())
+            var clientCredentialsSection = configuration.GetSection(sectionName);
+            if (!clientCredentialsSection.Exists())
             {
                 throw new ConfigurationNotFoundException(sectionName);
             }
 
-            // Client credentials
-            RegisterClientCredentialsSchemes(services, authenticationSection.GetSection("ClientCredentials"));
-
-            // PKCE
-            var pkceSection = authenticationSection.GetSection("Pkce");
-            ConfigurationLoader.RegisterOptions<PkceSchemeOptions>(services, pkceSection.GetChildren());
+            RegisterClientCredentialsSchemes(services, clientCredentialsSection);
 
             return services;
         }
@@ -135,16 +130,6 @@ public static class ServiceCollectionExtensions
             return builder
                 .AddDefaultAccessTokenResiliency()
                 .AddClientCredentialsTokenHandler(ClientCredentialsClientName.Parse(schemeName));
-        }
-
-        [UsedImplicitly]
-        public IHttpClientBuilder WithUserAccessTokenAuthentication(string schemeName)
-        {
-            return builder.AddHttpMessageHandler(
-                sp => new PkceAuthenticationHandler(
-                    sp.GetRequiredService<IOptionsMonitor<PkceSchemeOptions>>(),
-                    sp,
-                    schemeName));
         }
     }
 }

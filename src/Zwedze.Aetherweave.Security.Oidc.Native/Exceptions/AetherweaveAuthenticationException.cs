@@ -1,4 +1,6 @@
-namespace Zwedze.Aetherweave.Http.Exceptions;
+using Zwedze.Aetherweave.Http.Exceptions;
+
+namespace Zwedze.Aetherweave.Security.Oidc.Native.Exceptions;
 
 public sealed class AetherweaveAuthenticationException(string schemeName, string error)
     : AetherweaveHttpException(FormatMessage(schemeName, error))

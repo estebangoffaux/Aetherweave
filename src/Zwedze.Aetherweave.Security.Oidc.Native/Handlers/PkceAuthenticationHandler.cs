@@ -2,10 +2,10 @@ using Duende.IdentityModel.OidcClient;
 using Duende.IdentityModel.OidcClient.Browser;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Zwedze.Aetherweave.Http.Configuration;
-using Zwedze.Aetherweave.Http.Exceptions;
+using Zwedze.Aetherweave.Security.Oidc.Native.Configuration;
+using Zwedze.Aetherweave.Security.Oidc.Native.Exceptions;
 
-namespace Zwedze.Aetherweave.Http.Handlers;
+namespace Zwedze.Aetherweave.Security.Oidc.Native.Handlers;
 
 internal sealed class PkceAuthenticationHandler(
     IOptionsMonitor<PkceSchemeOptions> optionsMonitor,

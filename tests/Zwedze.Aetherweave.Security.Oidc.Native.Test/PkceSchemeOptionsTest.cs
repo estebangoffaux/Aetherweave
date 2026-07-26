@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using AwesomeAssertions;
-using Zwedze.Aetherweave.Http.Configuration;
+using Zwedze.Aetherweave.Security.Oidc.Native.Configuration;
 
-namespace Zwedze.Aetherweave.Http.Test;
+namespace Zwedze.Aetherweave.Security.Oidc.Native.Test;
 
 public class PkceSchemeOptionsTest
 {

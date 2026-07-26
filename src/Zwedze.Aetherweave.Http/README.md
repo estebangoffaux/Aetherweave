@@ -187,40 +187,40 @@ Logs response content when `EnableContentTracing` is `true`:
 **Security Warning:** ⚠️ Never enable `EnableContentTracing` in production with sensitive data (passwords, credit cards,
 etc.)!
 
-## Authentication
+## Authentication (backend-to-backend)
 
-Two independent OAuth2/OIDC authentication flows can be attached per `HttpClient`, backed directly by
-Duende's own libraries (`Duende.AccessTokenManagement` and `Duende.IdentityModel.OidcClient`) rather
-than a custom re-implementation:
+This package covers exactly one authentication case: **your service calling other APIs as itself**, with
+no user involved (OAuth2 client credentials). Token acquisition, caching, and renewal-on-401 are handled
+entirely by `Duende.AccessTokenManagement` — not a custom re-implementation.
 
-- **Client credentials** — service-to-service, no user involved. Token acquisition, caching, and
-  renewal-on-401 are handled entirely by `Duende.AccessTokenManagement`.
-- **PKCE (user-delegated)** — an interactive Authorization Code + PKCE flow for native/console/desktop
-  clients. Token attachment and refresh-on-401 are handled by
-  `Duende.IdentityModel.OidcClient`'s own `RefreshTokenDelegatingHandler`.
+For the other two Aetherweave auth cases, see their own packages:
 
-Both are opt-in per `HttpClient` via a fluent call — nothing is enabled globally.
+| Case | Package |
+|---|---|
+| Protecting your own API by validating incoming JWTs | `Zwedze.Aetherweave.Security.Jwt` |
+| Interactive user login for a Blazor WebAssembly UI | `Zwedze.Aetherweave.Security.Oidc` |
+| Interactive user login for a native/desktop/CLI app | `Zwedze.Aetherweave.Security.Oidc.Native` |
+
+A service can be a client of many different APIs, each behind a different identity provider — register
+one named scheme per downstream API.
 
 ### 1. Register named schemes once
 
 ```json
 {
   "Aetherweave": {
-    "Authentication": {
+    "Security": {
       "ClientCredentials": {
         "orders-api": {
           "TokenEndpoint": "https://identity.example.com/connect/token",
           "ClientId": "orders-service",
           "ClientSecret": "secret",
           "Scope": "orders.api"
-        }
-      },
-      "Pkce": {
-        "desktop-app": {
-          "Authority": "https://identity.example.com",
-          "ClientId": "desktop-client",
-          "RedirectUri": "http://127.0.0.1:7890/callback",
-          "Scope": "openid profile offline_access orders.api"
+        },
+        "payments-api": {
+          "TokenEndpoint": "https://payments-identity.example.com/connect/token",
+          "ClientId": "orders-service",
+          "ClientSecret": "another-secret"
         }
       }
     }
@@ -229,59 +229,26 @@ Both are opt-in per `HttpClient` via a fluent call — nothing is enabled global
 ```
 
 ```csharp
-services.AddAetherweaveOpenIdConnectAuthentication(configuration);
+services.AddAetherweaveClientCredentialsAuthentication(configuration);
 ```
 
-Both `ClientCredentials` and `Pkce` subsections are optional and independent — configure zero, one, or
-many named schemes under each.
+Configure zero, one, or many named schemes — nothing is registered globally until an `HttpClient` opts
+into a scheme.
 
 ### 2. Opt in per HttpClient
 
 ```csharp
 services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(configuration, "OrderService")
-    .AddAetherweaveClientCredentialsAuthentication("orders-api")
-    .AddAetherweaveErrorHandler<OrderServiceErrorHandler>();
+    .WithClientCredentialsAuthentication("orders-api")
+    .WithErrorHandler<OrderServiceErrorHandler>();
 ```
-
-For PKCE, the host app must also register a keyed `IBrowser` (from `Duende.IdentityModel.OidcClient.Browser`)
-per scheme — this is inherently host-specific (system browser launcher, embedded webview, etc.):
-
-```csharp
-services.AddKeyedSingleton<IBrowser>("desktop-app", (sp, _) => new MySystemBrowserLauncher());
-
-services.AddAetherweaveHttpClient<IProfileServiceClient, ProfileServiceClient>(configuration, "ProfileService")
-    .AddAetherweaveUserAccessTokenAuthentication("desktop-app");
-```
-
-The first call made through `ProfileService` triggers the interactive PKCE login automatically (via the
-registered `IBrowser`) — no manual login step is required. From then on, token attachment and
-refresh-on-401 are handled transparently by the `RefreshTokenDelegatingHandler` Duende's `OidcClient`
-returns from the login.
 
 ### Behavior notes
 
-- **Client-credentials failures don't throw.** If `Duende.AccessTokenManagement` can't acquire a token,
-  it logs a warning and sends the request *without* a token rather than throwing — this is Duende's own
-  documented behavior, not something this library changes.
-- **PKCE login is per-HttpClient, not shared across clients.** Each `HttpClient` wired to a PKCE scheme
-  performs its own independent interactive login and holds its own refresh token. If two typed clients
-  reference the same scheme name, each triggers its own separate browser login the first time it's
-  used. Sharing a single login across clients isn't supported, since many OIDC servers rotate/invalidate
-  refresh tokens on each use — two independently-refreshing clients on "the same" login would eventually
-  invalidate each other.
-- **PKCE is for native/desktop clients only** — this project has no ASP.NET Core dependency, so it
-  cannot participate in cookie-based web app OIDC login. For an ASP.NET Core web app that needs
-  delegated user tokens, use `Duende.AccessTokenManagement.OpenIdConnect` directly instead.
-- **Pick exactly one auth method per HttpClient.** Chaining both fluent calls on the same builder isn't
-  guarded against — the second handler's `Authorization` header write simply wins.
+- **Failures don't throw.** If `Duende.AccessTokenManagement` can't acquire a token, it logs a warning
+  and sends the request *without* a token rather than throwing — this is Duende's own documented
+  behavior, not something this library changes.
 - **Never commit `ClientSecret` values** — use environment-specific configuration or a secret store.
-
-### New exceptions
-
-| Exception | When |
-|---|---|
-| `AetherweaveAuthenticationException` | The PKCE interactive login fails, or succeeds without issuing a refresh token (check that `offline_access` is in `Scope`) |
-| `PkceBrowserNotRegisteredException` | A PKCE login is attempted but no keyed `IBrowser` was registered for that scheme |
 
 ## Advanced Usage
 
@@ -291,22 +258,21 @@ returns from the login.
 services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
         configuration, 
         "OrderService")
-    .AddAetherweaveHandler<AuthenticationHandler>()
-    .AddAetherweaveHandler<RetryPolicyHandler>();
+    .WithHandler<CorrelationIdHandler>()
+    .WithHandler<RetryPolicyHandler>();
 ```
 
 **Custom handler example:**
 
 ```csharp
-public sealed class AuthenticationHandler(ITokenProvider tokenProvider) : DelegatingHandler
+public sealed class CorrelationIdHandler(ICorrelationIdAccessor correlationIdAccessor) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        var token = await tokenProvider.GetTokenAsync(cancellationToken);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        
+        request.Headers.Add("X-Correlation-Id", correlationIdAccessor.CorrelationId);
+
         return await base.SendAsync(request, cancellationToken);
     }
 }
@@ -315,7 +281,7 @@ public sealed class AuthenticationHandler(ITokenProvider tokenProvider) : Delega
 services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
         configuration, 
         "OrderService")
-    .AddAetherweaveHandler<AuthenticationHandler>();
+    .WithHandler<CorrelationIdHandler>();
 ```
 
 ### Custom Error Handling
@@ -350,7 +316,7 @@ public sealed class OrderServiceErrorHandler(ILogger<OrderServiceErrorHandler> l
 services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
         configuration, 
         "OrderService")
-    .AddAetherweaveErrorHandler<OrderServiceErrorHandler>();
+    .WithErrorHandler<OrderServiceErrorHandler>();
 ```
 
 ### Combining Multiple Handlers
@@ -359,22 +325,22 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
 services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(
         configuration, 
         "OrderService")
-    .AddAetherweaveHandler<AuthenticationHandler>()
-    .AddAetherweaveHandler<RetryPolicyHandler>()
-    .AddAetherweaveErrorHandler<OrderServiceErrorHandler>();
+    .WithHandler<CorrelationIdHandler>()
+    .WithHandler<RetryPolicyHandler>()
+    .WithErrorHandler<OrderServiceErrorHandler>();
 ```
 
 **Handler execution order:**
 
 1. ProfilingHandler (starts timer) - built-in, outermost
 2. ContentTracingHandler (logs response) - built-in
-3. AuthenticationHandler (adds token)
+3. CorrelationIdHandler (adds header)
 4. RetryPolicyHandler (retries on failure)
 5. HttpErrorResponseHandler (custom error handling)
 6. → Actual HTTP request →
 7. HttpErrorResponseHandler (processes errors)
 8. RetryPolicyHandler (retry if needed)
-9. AuthenticationHandler
+9. CorrelationIdHandler
 10. ContentTracingHandler (logs response content)
 11. ProfilingHandler (logs timing)
 
@@ -511,7 +477,7 @@ public sealed class CreateOrderHandler(
 
 5. **Use custom error handlers for domain-specific errors:**
    ```csharp
-   .AddAetherweaveErrorHandler<OrderServiceErrorHandler>()
+   .WithErrorHandler<OrderServiceErrorHandler>()
    ```
 
 ### ❌ DON'T
@@ -604,9 +570,9 @@ Handlers execute in order of registration:
 ```csharp
 // Optimal order for performance
 services.AddAetherweaveHttpClient<IClient, Client>(config, "Client")
-    .AddAetherweaveHandler<CacheHandler>()        // Check cache first
-    .AddAetherweaveHandler<AuthenticationHandler>() // Then auth
-    .AddAetherweaveHandler<RetryPolicyHandler>();   // Retry last
+    .WithHandler<CacheHandler>()          // Check cache first
+    .WithHandler<CorrelationIdHandler>()  // Then tag the request
+    .WithHandler<RetryPolicyHandler>();   // Retry last
 ```
 
 ## Migration from HttpClientFactory
