@@ -53,6 +53,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Security", "Security", "{BC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zwedze.Aetherweave.Security.Oidc", "src\Zwedze.Aetherweave.Security.Oidc\Zwedze.Aetherweave.Security.Oidc.csproj", "{CF084A97-4326-4610-8900-60085D306743}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zwedze.Aetherweave.Test.Console", "tests\Zwedze.Aetherweave.Test.Console\Zwedze.Aetherweave.Test.Console.csproj", "{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -243,6 +245,18 @@ Global
 		{CF084A97-4326-4610-8900-60085D306743}.Release|x64.Build.0 = Release|Any CPU
 		{CF084A97-4326-4610-8900-60085D306743}.Release|x86.ActiveCfg = Release|Any CPU
 		{CF084A97-4326-4610-8900-60085D306743}.Release|x86.Build.0 = Release|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Debug|x64.Build.0 = Debug|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Debug|x86.Build.0 = Debug|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Release|x64.ActiveCfg = Release|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Release|x64.Build.0 = Release|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Release|x86.ActiveCfg = Release|Any CPU
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -263,5 +277,6 @@ Global
 		{93BD252B-6033-48D4-9D60-5E96984C4F62} = {D1F98E61-1784-4B38-A948-FADA48F0490E}
 		{6EC59331-2D38-4DA0-8C07-F1FE52B502AA} = {BC07F6B4-8005-4147-8E64-E5141873E6B5}
 		{CF084A97-4326-4610-8900-60085D306743} = {BC07F6B4-8005-4147-8E64-E5141873E6B5}
+		{50769B9D-417A-46DA-8A5A-1B8E82FEBF7D} = {2E5655F5-A18F-4CC8-8681-199299C634F5}
 	EndGlobalSection
 EndGlobal
