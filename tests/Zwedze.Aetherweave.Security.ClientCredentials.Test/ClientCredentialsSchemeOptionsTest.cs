@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using AwesomeAssertions;
-using Zwedze.Aetherweave.Http.Configuration;
+using Zwedze.Aetherweave.Security.ClientCredentials.Configuration;
 
-namespace Zwedze.Aetherweave.Http.Test;
+namespace Zwedze.Aetherweave.Security.ClientCredentials.Test;
 
 public class ClientCredentialsSchemeOptionsTest
 {

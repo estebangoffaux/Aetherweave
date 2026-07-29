@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\Zwedze.Aetherweave.Http\Zwedze.Aetherweave.Http.csproj"/>
+        <ProjectReference Include="..\..\src\Zwedze.Aetherweave.Security.ClientCredentials\Zwedze.Aetherweave.Security.ClientCredentials.csproj"/>
+    </ItemGroup>
+
+
+    <ItemGroup>
+        <Content Include="appsettings.json">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+
+        <Content Include="appsettings.*.json">
+            <DependentUpon>appsettings.json</DependentUpon>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10"/>
+    </ItemGroup>
+
+</Project>

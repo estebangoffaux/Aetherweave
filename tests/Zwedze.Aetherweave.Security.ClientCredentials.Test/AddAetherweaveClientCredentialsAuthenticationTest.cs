@@ -4,17 +4,17 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Zwedze.Aetherweave.Core.Configurations.Exceptions;
 
-namespace Zwedze.Aetherweave.Http.Test;
+namespace Zwedze.Aetherweave.Security.ClientCredentials.Test;
 
-public class AddAetherweaveOpenIdConnectAuthenticationTest
+public class AddAetherweaveClientCredentialsAuthenticationTest
 {
     [Test]
-    public void Should_Throw_WhenAuthenticationSectionIsMissing()
+    public void Should_Throw_WhenClientCredentialsSectionIsMissing()
     {
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder().Build();
 
-        var act = () => services.AddAetherweaveOidcAuthentication(configuration);
+        var act = () => services.AddAetherweaveClientCredentialsAuthentication(configuration);
 
         act.Should().Throw<ConfigurationNotFoundException>();
     }
@@ -26,12 +26,11 @@ public class AddAetherweaveOpenIdConnectAuthenticationTest
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Aetherweave:Authentication:ClientCredentials"] = null,
-                ["Aetherweave:Authentication:Pkce"] = null,
+                ["Aetherweave:Security:ClientCredentials"] = "",
             })
             .Build();
 
-        services.AddAetherweaveOidcAuthentication(configuration);
+        services.AddAetherweaveClientCredentialsAuthentication(configuration);
         var provider = services.BuildServiceProvider();
 
         provider.GetService<IClientCredentialsTokenManager>().Should().BeNull();
@@ -44,13 +43,13 @@ public class AddAetherweaveOpenIdConnectAuthenticationTest
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Aetherweave:Authentication:ClientCredentials:orders-api:TokenEndpoint"] = "https://identity.example.com/connect/token",
-                ["Aetherweave:Authentication:ClientCredentials:orders-api:ClientId"] = "orders-service",
-                ["Aetherweave:Authentication:ClientCredentials:orders-api:ClientSecret"] = "secret",
+                ["Aetherweave:Security:ClientCredentials:orders-api:TokenEndpoint"] = "https://identity.example.com/connect/token",
+                ["Aetherweave:Security:ClientCredentials:orders-api:ClientId"] = "orders-service",
+                ["Aetherweave:Security:ClientCredentials:orders-api:ClientSecret"] = "secret",
             })
             .Build();
 
-        services.AddAetherweaveOidcAuthentication(configuration);
+        services.AddAetherweaveClientCredentialsAuthentication(configuration);
         var provider = services.BuildServiceProvider();
 
         provider.GetService<IClientCredentialsTokenManager>().Should().NotBeNull();

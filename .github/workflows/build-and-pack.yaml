@@ -2,7 +2,7 @@ name: Build & Pack
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ develop ]
     tags: [ 'v*' ]
   workflow_dispatch:
     
