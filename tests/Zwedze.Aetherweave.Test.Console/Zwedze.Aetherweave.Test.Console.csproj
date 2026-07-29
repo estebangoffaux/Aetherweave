@@ -8,17 +8,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\Zwedze.Aetherweave.Http\Zwedze.Aetherweave.Http.csproj" />
-        <ProjectReference Include="..\..\src\Zwedze.Aetherweave.Security.ClientCredentials\Zwedze.Aetherweave.Security.ClientCredentials.csproj" />
+        <ProjectReference Include="..\..\src\Zwedze.Aetherweave.Http\Zwedze.Aetherweave.Http.csproj"/>
+        <ProjectReference Include="..\..\src\Zwedze.Aetherweave.Security.ClientCredentials\Zwedze.Aetherweave.Security.ClientCredentials.csproj"/>
     </ItemGroup>
+
 
     <ItemGroup>
         <Content Include="appsettings.json">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
-        <Content Update="appsettings.*.json">
+
+        <Content Include="appsettings.*.json">
             <DependentUpon>appsettings.json</DependentUpon>
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
 
