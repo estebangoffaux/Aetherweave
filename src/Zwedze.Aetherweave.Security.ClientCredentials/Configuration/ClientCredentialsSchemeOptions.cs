@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Zwedze.Aetherweave.Http.Configuration;
+namespace Zwedze.Aetherweave.Security.ClientCredentials.Configuration;
 
 public sealed record ClientCredentialsSchemeOptions : IValidatableObject
 {

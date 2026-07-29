@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Zwedze.Aetherweave.Security.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -41,20 +42,29 @@ var summaries = new[]
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 };
 
+WeatherForecast[] GenerateForecast()
+{
+    return Enumerable
+        .Range(1, 5)
+        .Select(index =>
+            new WeatherForecast(DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
+                Random.Shared.Next(-20, 55),
+                summaries[Random.Shared.Next(summaries.Length)]))
+        .ToArray();
+}
+
 app
-    .MapGet("/weatherforecast",
-        () =>
+    .MapGet("/weatherforecast", GenerateForecast)
+    .WithName("GetWeatherForecast");
+
+app
+    .MapGet("/weatherforecast/secure",
+        (ClaimsPrincipal user) => new
         {
-            var forecast = Enumerable
-                .Range(1, 5)
-                .Select(index =>
-                    new WeatherForecast(DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                        Random.Shared.Next(-20, 55),
-                        summaries[Random.Shared.Next(summaries.Length)]))
-                .ToArray();
-            return forecast;
+            Forecast = GenerateForecast(),
+            Caller = user.Claims.Select(c => new { c.Type, c.Value }),
         })
-    .WithName("GetWeatherForecast")
+    .WithName("GetSecureWeatherForecast")
     .RequireAuthorization();
 
 app.Run();

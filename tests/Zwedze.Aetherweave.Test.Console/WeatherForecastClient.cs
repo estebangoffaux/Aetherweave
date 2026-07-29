@@ -1,4 +1,4 @@
-﻿namespace Zwedze.Aetherweave.Test.Blazor;
+﻿namespace Zwedze.Aetherweave.Test.Console;
 
 public sealed class WeatherForecastClient(HttpClient client)
 {
