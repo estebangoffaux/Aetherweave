@@ -72,6 +72,17 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(confi
     .WithClientCredentialsAuthentication("orders-api");
 ```
 
+### Works with gRPC clients too
+
+`WithClientCredentialsAuthentication` is an `IHttpClientBuilder` extension, and `Grpc.Net.ClientFactory`'s
+`AddGrpcClient<TClient>` (wrapped by `Zwedze.Aetherweave.Grpc`) returns that same builder type — so it
+composes onto gRPC clients with no extra code:
+
+```csharp
+services.AddAetherweaveGrpcClient<Greeter.GreeterClient>(configuration, "GreeterService")
+    .WithClientCredentialsAuthentication("greeter-api");
+```
+
 ## Behavior notes
 
 - **Failures don't throw.** If `Duende.AccessTokenManagement` can't acquire a token, it logs a warning
