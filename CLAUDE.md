@@ -15,6 +15,7 @@ Zwedze.Aetherweave.sln
 │   ├── Zwedze.Aetherweave.Data.Relational       # EF Core UoW implementation, auto-config, health checks
 │   ├── Zwedze.Aetherweave.Core                  # Shared config binding + startup validation used by other packages
 │   ├── Zwedze.Aetherweave.Http                  # Typed HttpClient: profiling, content tracing, error handling (no auth)
+│   ├── Zwedze.Aetherweave.Grpc                  # Typed gRPC clients via Grpc.Net.ClientFactory: config-bound address/timeout (no auth)
 │   ├── Zwedze.Aetherweave.Security.Jwt          # Protect your own API: validate incoming JWTs against one IDP
 │   ├── Zwedze.Aetherweave.Security.ClientCredentials  # Backend-to-backend: your service as its own OAuth2 client
 │   ├── Zwedze.Aetherweave.Security.Oidc         # Interactive user login (Authorization Code + PKCE) for Blazor WebAssembly
@@ -23,10 +24,11 @@ Zwedze.Aetherweave.sln
 │   └── Zwedze.Aetherweave.Generators            # Source generator: [SmartEnum] boilerplate generation
 └── tests/
     ├── Zwedze.Aetherweave.Generators.Test                    # NUnit tests for SmartEnumGenerator
+    ├── Zwedze.Aetherweave.Grpc.Test                          # NUnit tests for Grpc
     └── Zwedze.Aetherweave.Security.ClientCredentials.Test    # NUnit tests for Security.ClientCredentials
 ```
 
-**Solution folders in the .sln:** Design (Application + SharedKernel), Data, Http, Security (Core, Security.Jwt, Security.ClientCredentials, Security.Oidc), IdGenerator, Common (Analyzers + Generators + Test), IntegrationTest (Test.Api, Test.Blazor, Test.Console).
+**Solution folders in the .sln:** Design (Application + SharedKernel), Data, Http, Grpc (Grpc + Grpc.Test), Security (Core, Security.Jwt, Security.ClientCredentials, Security.Oidc), IdGenerator, Common (Analyzers + Generators + Test), IntegrationTest (Test.Api, Test.Blazor, Test.Console).
 
 ## Authentication model — which package for which case
 
@@ -38,7 +40,7 @@ Aetherweave splits authentication into three packages with no overlap. Pick by *
 | Calling other APIs as your service (no user) | `Security.ClientCredentials` | Backend-to-backend. A service can call many downstream APIs behind different IDPs — one named scheme per API. |
 | Logging a user in from a Blazor WebAssembly UI | `Security.Oidc` | Authorization Code + PKCE, browser-hosted. |
 
-All three live under the `Aetherweave:Security:*` configuration prefix. `Http` itself carries no auth code and no auth-related dependency — it's the generic `HttpClient` plumbing that `Security.ClientCredentials` and `Security.Oidc` both build on.
+All three live under the `Aetherweave:Security:*` configuration prefix. `Http` itself carries no auth code and no auth-related dependency — it's the generic `HttpClient` plumbing that `Security.ClientCredentials` and `Security.Oidc` both build on. `Grpc` is the gRPC analogue of `Http`: `Grpc.Net.ClientFactory`'s `AddGrpcClient<TClient>()` returns a plain `IHttpClientBuilder`, so `Security.ClientCredentials.WithClientCredentialsAuthentication(schemeName)` composes onto gRPC clients with zero code changes to that package. Only the client-credentials case is supported for gRPC today — `Security.Oidc` does not build on `Grpc`.
 
 ## Project dependency graph
 
@@ -48,6 +50,7 @@ SharedKernel  ←─── IdentityGenerators
 Data          ←─── Data.Relational
 
 Core          ←─── Http
+Core          ←─── Grpc
 Core          ←─── Security.Jwt
 Core          ←─── Security.ClientCredentials  ←── Http
 Core          ←─── Security.Oidc               ←── Http
@@ -262,6 +265,42 @@ builder.WithHandler<CorrelationIdHandler>()         // custom DelegatingHandler
 
 ---
 
+## Zwedze.Aetherweave.Grpc
+
+**README:** [`src/Zwedze.Aetherweave.Grpc/README.md`](src/Zwedze.Aetherweave.Grpc/README.md)
+
+Type-safe, configuration-driven gRPC client registration via `Grpc.Net.ClientFactory`. Purely generic — no auth code, no auth-related package dependency. Same split as `Http`: see [Authentication model](#authentication-model--which-package-for-which-case) above.
+
+### Registration
+
+```csharp
+services.AddAetherweaveGrpcClient<Greeter.GreeterClient>(
+    configuration,
+    "GreeterService",                  // client name — matches config key
+    sectionName: "Aetherweave:GrpcClients"  // optional, this is the default
+);
+```
+
+`AddAetherweaveGrpcClient<TClient>` returns a plain `IHttpClientBuilder` (same as `Grpc.Net.ClientFactory`'s own `AddGrpcClient<TClient>`) — only one generic parameter, unlike `Http`'s `<TInterface, TImplementation>`, since gRPC-generated clients are concrete classes with no separate interface.
+
+### Configuration (`Aetherweave:GrpcClients:{clientName}`)
+
+| Key | Default | Notes |
+|---|---|---|
+| `Address` | *required* | Must be an absolute URI |
+| `Timeout` | `00:00:30` | Must be > 0 |
+
+### Authentication
+
+No built-in handlers — compose `Security.ClientCredentials.WithClientCredentialsAuthentication(schemeName)` directly onto the returned `IHttpClientBuilder`:
+
+```csharp
+services.AddAetherweaveGrpcClient<Greeter.GreeterClient>(configuration, "GreeterService")
+    .WithClientCredentialsAuthentication("greeter-api");
+```
+
+---
+
 ## Zwedze.Aetherweave.Core
 
 **README:** [`src/Zwedze.Aetherweave.Core/README.md`](src/Zwedze.Aetherweave.Core/README.md)
@@ -315,6 +354,8 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(confi
 ```
 
 Register one named scheme per downstream API — each can point at a different IDP. Token acquisition/caching/renewal is handled entirely by Duende; a failed acquisition logs a warning and sends the request without a token rather than throwing.
+
+Also composes onto gRPC clients registered via `Zwedze.Aetherweave.Grpc` — `AddGrpcClient<TClient>` returns an `IHttpClientBuilder` too, so no code changes were needed to support that case.
 
 ---
 
