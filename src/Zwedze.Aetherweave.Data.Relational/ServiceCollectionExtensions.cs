@@ -15,7 +15,7 @@ public static class ServiceCollectionExtensions
         [UsedImplicitly]
         public IServiceCollection AddAetherweaveData<TDbContext>(
             IConfiguration configuration,
-            Action<DbContextOptionsBuilder, DataRelationalOptions> configure,
+            Action<DbContextOptionsBuilder, DataRelationalOptions, IServiceProvider> configure,
             string sectionName = "Aetherweave:DataRelational",
             bool addHealthCheck = true)
             where TDbContext : DbContext
@@ -26,7 +26,7 @@ public static class ServiceCollectionExtensions
             {
                 var opts = serviceProvider.GetRequiredService<IOptions<DataRelationalOptions>>();
                 // Invoke the EF-provider specific configuration delegate
-                configure(dbContextOptions, opts.Value);
+                configure(dbContextOptions, opts.Value, serviceProvider);
                 // Specify if detailed errors should be enabled
                 dbContextOptions.EnableDetailedErrors(opts.Value.EnableDetailedErrors);
                 // Specify if sensitive data logging should be enabled
