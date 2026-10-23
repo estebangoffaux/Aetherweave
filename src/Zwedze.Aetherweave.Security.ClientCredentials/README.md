@@ -85,7 +85,15 @@ services.AddAetherweaveGrpcClient<Greeter.GreeterClient>(configuration, "Greeter
 
 ## Behavior notes
 
-- **Failures don't throw.** If `Duende.AccessTokenManagement` can't acquire a token, it logs a warning
+- **Configuration is validated at registration.** `AddAetherweaveClientCredentialsAuthentication` binds and validates
+  every scheme immediately (via `Zwedze.Aetherweave.Core`'s `ConfigurationLoader.GetOptions`):
+  - missing parent section → `ConfigurationNotFoundException`;
+  - a scheme with a missing `TokenEndpoint`/`ClientId`/`ClientSecret`, or a `TokenEndpoint` that is not an absolute
+    URI → `ConfigurationInvalidException`, whose `SectionName` is the scheme's path
+    (e.g. `Aetherweave:Security:ClientCredentials:orders-api`) and `Errors` lists every problem.
+
+  Both are thrown at startup, never at the first token request. An empty parent section registers nothing and does not throw.
+- **Token failures don't throw.** If `Duende.AccessTokenManagement` can't acquire a token, it logs a warning
   and sends the request *without* a token rather than throwing — this is Duende's own documented
   behavior, not something this library changes.
 - **Never commit `ClientSecret` values** — use environment-specific configuration or a secret store.

@@ -4,20 +4,14 @@ using Zwedze.Aetherweave.SharedKernel.DomainEvents;
 
 namespace Zwedze.Aetherweave.SharedKernel;
 
-public interface IAggregateRoot<TEntity> : IHasDomainEvents
-{
-    Id<TEntity> Id { get; }
-    Code<TEntity> Code { get; }
-}
-
-public abstract class AggregateRoot<TEntity>(Id<TEntity> id, Code<TEntity> code) : IAggregateRoot<TEntity>
+public abstract class AggregateRoot<TEntity>(Id<TEntity> id, Code<TEntity> code) : IHasDomainEvents
 {
     private readonly List<IDomainEvent> _events = new();
 
     public Id<TEntity> Id { get; } = id;
     public Code<TEntity> Code { get; } = code;
 
-    public ImmutableArray<IDomainEvent> PopDomainEvents()
+    public IReadOnlyCollection<IDomainEvent> PopDomainEvents()
     {
         var events = _events.ToImmutableArray();
         _events.Clear();

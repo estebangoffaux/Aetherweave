@@ -11,7 +11,7 @@ Zwedze.Aetherweave.sln
 ├── src/
 │   ├── Zwedze.Aetherweave.SharedKernel          # Domain primitives: Id<T>, Code<T>, AggregateRoot, DomainEvents
 │   ├── Zwedze.Aetherweave.Application           # CQRS interfaces, domain event dispatcher, ResponseWrapper, ErrorFactory
-│   ├── Zwedze.Aetherweave.Data                  # IUnitOfWork + IUnitOfWorkFactory abstractions only
+│   ├── Zwedze.Aetherweave.Data                  # Unit-of-work abstractions + their exceptions (no EF Core)
 │   ├── Zwedze.Aetherweave.Data.Relational       # EF Core UoW implementation, auto-config, health checks
 │   ├── Zwedze.Aetherweave.Core                  # Shared config binding + startup validation used by other packages
 │   ├── Zwedze.Aetherweave.Http                  # Typed HttpClient: profiling, content tracing, error handling (no auth)
@@ -48,6 +48,7 @@ All three live under the `Aetherweave:Security:*` configuration prefix. `Http` i
 SharedKernel  ←─── Application
 SharedKernel  ←─── IdentityGenerators
 Data          ←─── Data.Relational
+Core          ←─── Data.Relational
 
 Core          ←─── Http
 Core          ←─── Grpc
@@ -68,7 +69,7 @@ Generators             (standalone, netstandard2.0; consuming project needs Shar
 - **`[UsedImplicitly]`** (JetBrains.Annotations, private asset): decorates public interfaces and factory methods to silence false-positive "unused" warnings from Roslyn/Rider.
 - **Error codes:** `SCREAMING_SNAKE_CASE` strings. The constant `Error.UnmanagedErrorCode = "__unmanaged_error"` is reserved for unhandled exceptions.
 - **Versioning:** managed by `GitVersion.yml` (semver from git tags). Never edit `<Version>` in `.csproj` files manually.
-- **Packaging:** all `src/` projects are `<IsPackable>true</IsPackable>`. Shared icon at repo root `Icon.png`; each project bundles its own `README.md` as the NuGet readme (except `Data`, `Analyzers`, `Generators` which don't yet declare `<PackageReadmeFile>`).
+- **Packaging:** all `src/` projects are `<IsPackable>true</IsPackable>`. Shared icon at repo root `Icon.png`; each project bundles its own `README.md` as the NuGet readme (except `Analyzers` and `Generators`, which don't yet declare `<PackageReadmeFile>`).
 - **Analyzers / Generators packaging:** `<DevelopmentDependency>true</DevelopmentDependency>`, `<IncludeBuildOutput>false</IncludeBuildOutput>`, assembly packed under `analyzers/dotnet/cs/`.
 
 ---
@@ -145,10 +146,10 @@ services.AddAetherweaveDomainEventDispatcher(registry =>
 
 // Dispatch (always after Commit)
 await uow.Commit(ct);
-await eventDispatcher.DispatchAsync(aggregate, ct);
+await eventDispatcher.Dispatch(aggregate);
 ```
 
-`IDomainEventDispatcher` is **scoped**. All registered handlers run; if any throw, an `AggregateException` is raised after all handlers complete.
+`IDomainEventDispatcher` is **scoped**. All registered handlers run; handler failures are grouped per event into an `AggregateException` that is **logged, not rethrown**, and dispatch continues with the next event. `Dispatch` takes no `CancellationToken` by design: handlers receive `IHostApplicationLifetime.ApplicationStopped` (requires a host), never the request token; on shutdown, `Dispatch` throws `OperationCanceledException`.
 
 ### Error + ErrorFactory
 
@@ -165,15 +166,32 @@ ErrorFactory.Create(anyException)               // uses UnmanagedErrorCode
 
 **README:** [`src/Zwedze.Aetherweave.Data/README.md`](src/Zwedze.Aetherweave.Data/README.md)
 
-Pure abstractions — no EF Core dependency.
+Pure abstractions — no EF Core dependency. Holds the unit-of-work contract **and its exceptions** (`Zwedze.Aetherweave.Data.Exceptions`), so application code never references `Data.Relational`.
 
 | Interface | Members |
 |---|---|
-| `IUnitOfWork` | `SaveChanges(CT)`, `Dispose()`, `DisposeAsync()` |
-| `ITransactionalUnitOfWork : IUnitOfWork` | adds `Commit(CT)`, `Rollback(CT)` |
+| `IUnitOfWork` | `SaveChanges(CancellationToken ct)`, `Dispose()`, `DisposeAsync()` |
+| `ITransactionalUnitOfWork : IUnitOfWork` | adds `Commit(CancellationToken ct)`, `Rollback(CancellationToken ct)` |
 | `IUnitOfWorkFactory` | `CreateTransactional()` → `ITransactionalUnitOfWork` |
 
-> `IUnitOfWorkFactory` exposes **only** `CreateTransactional()`. For read-only operations, inject the `DbContext` directly — no unit of work needed.
+> `IUnitOfWorkFactory` exposes **only** `CreateTransactional()` (the non-transactional unit of work was removed). Reads need no unit of work: go through a query service or repository, never the `DbContext` from application code.
+
+### Transactional UoW contract
+
+- Transaction is **lazy**: starts on the first `SaveChanges`; later calls reuse it.
+- `Commit` and `Rollback` are **terminal**: any later `SaveChanges`/`Commit`/`Rollback` throws `TransactionAlreadyCommittedException` / `TransactionAlreadyRolledBackException`. A disposed UoW throws `ObjectDisposedException`.
+- `Rollback` clears EF's change tracker. Use it only for an explicit business decision — never in a `catch` (disposal already rolls back).
+- Disposing while active rolls back, logs a warning and clears the change tracker. A failing automatic rollback is logged, **never thrown** (the original exception is preserved).
+- One UoW at a time per DI scope (they share the scoped `DbContext`).
+
+### Exceptions (`Zwedze.Aetherweave.Data.Exceptions`, base `AetherweaveDataException`)
+
+| Type | When |
+|---|---|
+| `NoTransactionException` | `Commit()` before any `SaveChanges()` |
+| `TransactionAlreadyCommittedException` | Any call after `Commit()` |
+| `TransactionAlreadyRolledBackException` | Any call after `Rollback()` |
+| `TransactionNotCommittedException` | Reserved, not thrown (uncommitted disposal logs a warning) |
 
 ---
 
@@ -208,19 +226,16 @@ Uses C# 14 `extension(IServiceCollection services)` syntax internally.
 
 ### Transactional UoW behaviour
 
-- Transaction is **lazy**: starts on the first call to `SaveChanges`.
-- Disposing without calling `Commit` logs a warning and rolls back automatically.
-- `Commit` throws `TransactionAlreadyCommittedException` if called twice.
-- `Commit` throws `NoTransactionException` if `SaveChanges` was never called.
+Implements the contract described under [Zwedze.Aetherweave.Data](#zwedzeaetherweavedata). `IUnitOfWorkFactory` is registered **scoped**, bound to the scoped `TDbContext`.
 
 ### Exceptions
 
 | Type | When |
 |---|---|
-| `ConfigurationNotFoundException` | Config section absent at startup |
-| `TransactionAlreadyCommittedException` | `Commit()` called more than once |
-| `NoTransactionException` | `Commit()` before any `SaveChanges()` |
-| `TransactionNotCommittedException` | (logged as warning on disposal) |
+| `ConfigurationNotFoundException` (`Core.Configurations.Exceptions`) | Config section absent, at registration |
+| `OptionsValidationException` (`Microsoft.Extensions.Options`) | Invalid config values, at host start |
+
+Data.Relational has no exceptions of its own. The unit-of-work exceptions live in `Zwedze.Aetherweave.Data.Exceptions`.
 
 ---
 
@@ -305,18 +320,24 @@ services.AddAetherweaveGrpcClient<Greeter.GreeterClient>(configuration, "Greeter
 
 **README:** [`src/Zwedze.Aetherweave.Core/README.md`](src/Zwedze.Aetherweave.Core/README.md)
 
-Shared resources used by other Aetherweave packages — configuration binding with startup validation, and the exceptions that go with it. Every `Security.*` package and `Http` depend on this.
+Shared resources used by other Aetherweave packages — configuration binding with validation, and the exceptions that go with it. `Http`, `Grpc`, `Data.Relational` and every `Security.*` package depend on this; applications may also use it for their own options.
 
 ```csharp
-ConfigurationLoader.RegisterOptions<TOptions>(services, configuration, sectionName, optionName: null); // DI-bound, validated on start
-ConfigurationLoader.RegisterOptions<TOptions>(services, sections);                                     // one named option per section (e.g. per HttpClient/scheme)
+ConfigurationLoader.RegisterOptions<TOptions>(services, configuration, sectionName, optionName: null); // DI-bound, validated at host start
+ConfigurationLoader.RegisterOptions<TOptions>(services, sections);                                     // one named option per section key; empty list = no-op
 ConfigurationLoader.GetOptions<TOptions>(configuration, sectionName);                                   // bound + validated immediately, outside DI
 ```
 
-| Exception | When |
-|---|---|
-| `ConfigurationNotFoundException` | The requested section does not exist in `IConfiguration` |
-| `ConfigurationInvalidException` | The bound options object fails data annotation validation |
+| Exception | Thrown by | When |
+|---|---|---|
+| `ConfigurationNotFoundException` (`SectionName`) | `RegisterOptions` (single section), `GetOptions` | The section does not exist — immediately |
+| `ConfigurationInvalidException` (`SectionName`, `Errors`) | `GetOptions` only | The section cannot be bound to `T`, or validation fails |
+| `OptionsValidationException` (.NET) | `RegisterOptions` | Invalid values — at host start (`ValidateOnStart`; first resolution without a host) |
+
+- Validation = data annotations + `IValidatableObject`, **top-level properties only** (nested objects are not validated).
+- Named options are **case-sensitive**: resolve with the exact name/section key.
+- `IOptions<T>` is validated once and cached; `IOptionsMonitor<T>` re-validates on configuration reload.
+- `JetBrains.Annotations` is a private asset here like everywhere else: a project using `[UsedImplicitly]` must reference it itself.
 
 ---
 
@@ -353,7 +374,7 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(confi
     .WithClientCredentialsAuthentication("orders-api");
 ```
 
-Register one named scheme per downstream API — each can point at a different IDP. Token acquisition/caching/renewal is handled entirely by Duende; a failed acquisition logs a warning and sends the request without a token rather than throwing.
+Register one named scheme per downstream API — each can point at a different IDP. Every scheme is bound and validated **at registration** with `ConfigurationLoader.GetOptions<ClientCredentialsSchemeOptions>` (missing parent section → `ConfigurationNotFoundException`; invalid scheme → `ConfigurationInvalidException` with the scheme path as `SectionName`). Token acquisition/caching/renewal is handled entirely by Duende; a failed acquisition logs a warning and sends the request without a token rather than throwing.
 
 Also composes onto gRPC clients registered via `Zwedze.Aetherweave.Grpc` — `AddGrpcClient<TClient>` returns an `IHttpClientBuilder` too, so no code changes were needed to support that case.
 

@@ -5,11 +5,11 @@ namespace Zwedze.Aetherweave.Application.CQRS;
 [UsedImplicitly]
 public interface ICommandHandler<in TRequest, TResponse>
 {
-    Task<ResponseWrapper<TResponse>> Handle(TRequest request, CancellationToken cancellationToken = default);
+    Task<ResponseWrapper<TResponse>> Handle(TRequest request, CancellationToken ct);
 }
 
 [UsedImplicitly]
 public interface ICommandHandler<in TRequest>
 {
-    Task<ResponseWrapper> Handle(TRequest request, CancellationToken cancellationToken = default);
+    Task<ResponseWrapper> Handle(TRequest request, CancellationToken ct);
 }

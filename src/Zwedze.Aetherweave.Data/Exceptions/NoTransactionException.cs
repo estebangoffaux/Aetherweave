@@ -1,3 +1,3 @@
-namespace Zwedze.Aetherweave.Data.Relational.Exceptions;
+namespace Zwedze.Aetherweave.Data.Exceptions;
 
 public sealed class NoTransactionException() : AetherweaveDataException("There is no transaction to commit.");

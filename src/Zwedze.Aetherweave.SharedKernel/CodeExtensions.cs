@@ -2,8 +2,8 @@ namespace Zwedze.Aetherweave.SharedKernel;
 
 public static class CodeExtensions
 {
-    public static IReadOnlyCollection<string> ToLong<T>(this IEnumerable<Code<T>> codes)
+    public static Code<T> ToCode<T>(this string value)
     {
-        return [.. codes.Select(x => (string)x)];
+        return Code<T>.From(value);
     }
 }

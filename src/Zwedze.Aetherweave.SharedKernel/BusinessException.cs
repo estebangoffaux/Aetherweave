@@ -1,6 +1,6 @@
 ﻿namespace Zwedze.Aetherweave.SharedKernel;
 
-public abstract class BusinessException(string message, string errorCode) : ApplicationException(message)
+public abstract class BusinessException(ErrorCode errorCode, string message) : ApplicationException(message)
 {
-    public string ErrorCode { get; } = errorCode;
+    public ErrorCode ErrorCode { get; } = errorCode;
 }

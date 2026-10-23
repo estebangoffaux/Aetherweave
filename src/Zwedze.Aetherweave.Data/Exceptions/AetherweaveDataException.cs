@@ -1,4 +1,4 @@
-namespace Zwedze.Aetherweave.Data.Relational.Exceptions;
+namespace Zwedze.Aetherweave.Data.Exceptions;
 
 public abstract class AetherweaveDataException : Exception
 {

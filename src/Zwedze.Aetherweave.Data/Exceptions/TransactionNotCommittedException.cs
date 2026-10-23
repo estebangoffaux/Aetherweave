@@ -1,4 +1,4 @@
-namespace Zwedze.Aetherweave.Data.Relational.Exceptions;
+namespace Zwedze.Aetherweave.Data.Exceptions;
 
 public sealed class TransactionNotCommittedException() : AetherweaveDataException(
     "Transaction was not committed before disposal. " +

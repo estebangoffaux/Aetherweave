@@ -1,17 +1,33 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Zwedze.Aetherweave.SharedKernel.DomainEvents;
 
 namespace Zwedze.Aetherweave.Application.DomainEventHandlers;
 
-internal sealed class DomainEventDispatcher(ILogger<DomainEventDispatcher> logger) : IDomainEventDispatcher
+internal sealed class DomainEventDispatcher(
+    ILogger<DomainEventDispatcher> logger,
+    IHostApplicationLifetime hostApplicationLifetime) : IDomainEventDispatcher
 {
     private readonly Dictionary<Type, List<Func<IDomainEvent, CancellationToken, Task>>> _handlers = new();
 
-    public async Task DispatchAsync(IHasDomainEvents domainEventsHolder, CancellationToken cancellationToken)
+    public async Task Dispatch(IHasDomainEvents domainEventsHolder)
     {
+        // The only valid cancellation token should be the one used by the application when it is shutting down.
+        // This ensures that all domain events are processed before the application stops.
+        // Any http request cancellation tokens should not be used here, as they may lead to incomplete processing of domain events.
+        var ct = hostApplicationLifetime.ApplicationStopped;
+
         foreach (var domainEvent in domainEventsHolder.PopDomainEvents())
         {
-            await DispatchAsync(domainEvent, cancellationToken);
+            // A failing event must not prevent the next ones from being dispatched: they are already popped
+            try
+            {
+                await DispatchAsync(domainEvent, ct);
+            }
+            catch (AggregateException ex)
+            {
+                logger.LogError(ex, "Error occurred while dispatching domain event {DomainEvent}", domainEvent.GetType().Name);
+            }
         }
     }
 
@@ -48,11 +64,12 @@ internal sealed class DomainEventDispatcher(ILogger<DomainEventDispatcher> logge
         var exceptions = new List<Exception>();
         foreach (var handler in handlers)
         {
+            ct.ThrowIfCancellationRequested();
             try
             {
                 await handler(@event, ct);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 exceptions.Add(ex);
             }
