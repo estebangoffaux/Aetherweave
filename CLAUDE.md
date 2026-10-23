@@ -48,6 +48,7 @@ All three live under the `Aetherweave:Security:*` configuration prefix. `Http` i
 SharedKernel  ←─── Application
 SharedKernel  ←─── IdentityGenerators
 Data          ←─── Data.Relational
+Core          ←─── Data.Relational
 
 Core          ←─── Http
 Core          ←─── Grpc
@@ -231,9 +232,10 @@ Implements the contract described under [Zwedze.Aetherweave.Data](#zwedzeaetherw
 
 | Type | When |
 |---|---|
-| `ConfigurationNotFoundException` (`Data.Relational.Exceptions`) | Config section absent at startup |
+| `ConfigurationNotFoundException` (`Core.Configurations.Exceptions`) | Config section absent, at registration |
+| `OptionsValidationException` (`Microsoft.Extensions.Options`) | Invalid config values, at host start |
 
-The unit-of-work exceptions live in `Zwedze.Aetherweave.Data.Exceptions`.
+Data.Relational has no exceptions of its own. The unit-of-work exceptions live in `Zwedze.Aetherweave.Data.Exceptions`.
 
 ---
 
@@ -318,18 +320,24 @@ services.AddAetherweaveGrpcClient<Greeter.GreeterClient>(configuration, "Greeter
 
 **README:** [`src/Zwedze.Aetherweave.Core/README.md`](src/Zwedze.Aetherweave.Core/README.md)
 
-Shared resources used by other Aetherweave packages — configuration binding with startup validation, and the exceptions that go with it. Every `Security.*` package and `Http` depend on this.
+Shared resources used by other Aetherweave packages — configuration binding with validation, and the exceptions that go with it. `Http`, `Grpc`, `Data.Relational` and every `Security.*` package depend on this; applications may also use it for their own options.
 
 ```csharp
-ConfigurationLoader.RegisterOptions<TOptions>(services, configuration, sectionName, optionName: null); // DI-bound, validated on start
-ConfigurationLoader.RegisterOptions<TOptions>(services, sections);                                     // one named option per section (e.g. per HttpClient/scheme)
+ConfigurationLoader.RegisterOptions<TOptions>(services, configuration, sectionName, optionName: null); // DI-bound, validated at host start
+ConfigurationLoader.RegisterOptions<TOptions>(services, sections);                                     // one named option per section key; empty list = no-op
 ConfigurationLoader.GetOptions<TOptions>(configuration, sectionName);                                   // bound + validated immediately, outside DI
 ```
 
-| Exception | When |
-|---|---|
-| `ConfigurationNotFoundException` | The requested section does not exist in `IConfiguration` |
-| `ConfigurationInvalidException` | The bound options object fails data annotation validation |
+| Exception | Thrown by | When |
+|---|---|---|
+| `ConfigurationNotFoundException` (`SectionName`) | `RegisterOptions` (single section), `GetOptions` | The section does not exist — immediately |
+| `ConfigurationInvalidException` (`SectionName`, `Errors`) | `GetOptions` only | The section cannot be bound to `T`, or validation fails |
+| `OptionsValidationException` (.NET) | `RegisterOptions` | Invalid values — at host start (`ValidateOnStart`; first resolution without a host) |
+
+- Validation = data annotations + `IValidatableObject`, **top-level properties only** (nested objects are not validated).
+- Named options are **case-sensitive**: resolve with the exact name/section key.
+- `IOptions<T>` is validated once and cached; `IOptionsMonitor<T>` re-validates on configuration reload.
+- `JetBrains.Annotations` is a private asset here like everywhere else: a project using `[UsedImplicitly]` must reference it itself.
 
 ---
 
@@ -366,7 +374,7 @@ services.AddAetherweaveHttpClient<IOrderServiceClient, OrderServiceClient>(confi
     .WithClientCredentialsAuthentication("orders-api");
 ```
 
-Register one named scheme per downstream API — each can point at a different IDP. Token acquisition/caching/renewal is handled entirely by Duende; a failed acquisition logs a warning and sends the request without a token rather than throwing.
+Register one named scheme per downstream API — each can point at a different IDP. Every scheme is bound and validated **at registration** with `ConfigurationLoader.GetOptions<ClientCredentialsSchemeOptions>` (missing parent section → `ConfigurationNotFoundException`; invalid scheme → `ConfigurationInvalidException` with the scheme path as `SectionName`). Token acquisition/caching/renewal is handled entirely by Duende; a failed acquisition logs a warning and sends the request without a token rather than throwing.
 
 Also composes onto gRPC clients registered via `Zwedze.Aetherweave.Grpc` — `AddGrpcClient<TClient>` returns an `IHttpClientBuilder` too, so no code changes were needed to support that case.
 

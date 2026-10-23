@@ -54,4 +54,22 @@ public class AddAetherweaveClientCredentialsAuthenticationTest
 
         provider.GetService<IClientCredentialsTokenManager>().Should().NotBeNull();
     }
+
+    [Test]
+    public void Should_Throw_WhenASchemeIsInvalid()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Aetherweave:Security:ClientCredentials:orders-api:TokenEndpoint"] = "not-a-uri",
+                ["Aetherweave:Security:ClientCredentials:orders-api:ClientId"] = "orders-service",
+            })
+            .Build();
+
+        var act = () => services.AddAetherweaveClientCredentialsAuthentication(configuration);
+
+        act.Should().Throw<ConfigurationInvalidException>()
+            .Which.SectionName.Should().Be("Aetherweave:Security:ClientCredentials:orders-api");
+    }
 }

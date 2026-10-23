@@ -576,7 +576,8 @@ public sealed class OrderService(IOrderRepository orderRepository, IUnitOfWorkFa
 
 | Exception | Namespace | When Thrown | How to Handle |
 |---|---|---|---|
-| `ConfigurationNotFoundException` | `Zwedze.Aetherweave.Data.Relational.Exceptions` | Config section missing | Check appsettings.json |
+| `ConfigurationNotFoundException` | `Zwedze.Aetherweave.Core.Configurations.Exceptions` | Config section missing, at registration | Check appsettings.json |
+| `OptionsValidationException` | `Microsoft.Extensions.Options` | Invalid config values, at host start | Fix the reported values |
 | `NoTransactionException` | `Zwedze.Aetherweave.Data.Exceptions` | `Commit` before any `SaveChanges` | Call `SaveChanges` first |
 | `TransactionAlreadyCommittedException` | `Zwedze.Aetherweave.Data.Exceptions` | Any call after `Commit` | Create a new unit of work |
 | `TransactionAlreadyRolledBackException` | `Zwedze.Aetherweave.Data.Exceptions` | Any call after `Rollback` | Create a new unit of work |
