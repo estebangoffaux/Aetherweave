@@ -2,6 +2,7 @@ using Duende.AccessTokenManagement;
 using JetBrains.Annotations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Zwedze.Aetherweave.Core.Configurations;
 using Zwedze.Aetherweave.Core.Configurations.Exceptions;
 using Zwedze.Aetherweave.Security.ClientCredentials.Configuration;
 
@@ -22,13 +23,16 @@ public static class ServiceCollectionExtensions
                 throw new ConfigurationNotFoundException(sectionName);
             }
 
-            RegisterClientCredentialsSchemes(services, clientCredentialsSection);
+            RegisterClientCredentialsSchemes(services, configuration, clientCredentialsSection);
 
             return services;
         }
     }
 
-    private static void RegisterClientCredentialsSchemes(IServiceCollection services, IConfigurationSection clientCredentialsSection)
+    private static void RegisterClientCredentialsSchemes(
+        IServiceCollection services,
+        IConfiguration configuration,
+        IConfigurationSection clientCredentialsSection)
     {
         var schemeSections = clientCredentialsSection.GetChildren().ToArray();
         if (schemeSections.Length == 0)
@@ -42,12 +46,13 @@ public static class ServiceCollectionExtensions
         {
             var schemeName = schemeSection.Key;
 
+            // Bound and validated at registration: a misconfigured scheme fails at startup, not at the first token request
+            var options = ConfigurationLoader.GetOptions<ClientCredentialsSchemeOptions>(configuration, schemeSection.Path);
+
             tokenManagementBuilder.AddClient(
                 schemeName,
                 client =>
                 {
-                    var options = schemeSection.Get<ClientCredentialsSchemeOptions>()!;
-
                     client.TokenEndpoint = new Uri(options.TokenEndpoint);
                     client.ClientId = ClientId.Parse(options.ClientId);
                     client.ClientSecret = ClientSecret.Parse(options.ClientSecret);

@@ -2,8 +2,8 @@
 
 <img src="Icon.png" alt="Aetherweave" width="50" />
 
-A pragmatic framework for building clean, maintainable .NET applications using Domain-Driven Design and functional
-programming patterns.
+A pragmatic framework for building clean, maintainable .NET applications using Domain-Driven Design and clean
+architecture patterns.
 
 ## Philosophy
 
@@ -39,17 +39,6 @@ logic.
 - ResponseWrapper for type-safe success/failure responses
 - Error factory for consistent error handling
 
-#### [Aetherweave.FunctionalProgramming](src/Zwedze.Aetherweave.FunctionalProgramming/README.md)
-
-Railway-oriented programming for .NET. Chain operations that can fail elegantly without drowning in try-catch blocks.
-
-**Key Features:**
-
-- Result&lt;T&gt; for type-safe error handling
-- Map, Bind, and Match for composable operations
-- Async-first with comprehensive async support
-- Integration with CQRS patterns
-
 ### Infrastructure & Integration
 
 #### [Aetherweave.Data.Relational](src/Zwedze.Aetherweave.Data.Relational/Zwedze.Aetherweave.Data.Relational.csproj)
@@ -58,7 +47,7 @@ Clean EF Core wrapper with Unit of Work pattern. Transactional integrity without
 
 **Key Features:**
 
-- Transactional and non-transactional unit of work support
+- Transactional unit of work with explicit commit and automatic rollback
 - Configuration-based DbContext setup from appsettings
 - Auto-starting transactions (no manual BeginTransaction needed)
 - Built-in health checks for production monitoring
@@ -96,9 +85,6 @@ dotnet add package Zwedze.Aetherweave.SharedKernel
 
 # Application layer patterns
 dotnet add package Zwedze.Aetherweave.Application
-
-# Functional error handling
-dotnet add package Zwedze.Aetherweave.FunctionalProgramming
 ```
 
 ### 2. Add Infrastructure as Needed
@@ -117,71 +103,97 @@ dotnet add package Zwedze.Aetherweave.IdentityGenerators
 ### 3. Define Your Domain
 
 ```csharp
-// Domain entity with type-safe IDs
-public class Order : AggregateRoot<Order>
+// Aggregate root: internal Id<T> + external Code<T>, private constructor, Create/Reconstitute factories
+public sealed class Order : AggregateRoot<Order>
 {
-    public Order(Id<Order> id, Code<Order> orderNumber) : base(id, orderNumber)
+    private Order(Id<Order> id, Code<Order> code, Id<Customer> customerId, OrderStatus status)
+        : base(id, code)
     {
-        Status = OrderStatus.Draft;
+        CustomerId = customerId;
+        Status = status;
     }
 
-    public decimal Total { get; private set; }
+    public Id<Customer> CustomerId { get; private set; }
     public OrderStatus Status { get; private set; }
+
+    public static Order Create(Id<Order> id, Code<Order> code, Id<Customer> customerId)
+    {
+        var order = new Order(id, code, customerId, OrderStatus.Draft);
+        order.RaiseDomainEvent(new OrderCreatedEvent(order.Id, customerId));
+        return order;
+    }
+
+    public static Order Reconstitute(Id<Order> id, Code<Order> code, Id<Customer> customerId, OrderStatus status)
+    {
+        return new Order(id, code, customerId, status); // never raises events
+    }
 
     public void Submit()
     {
         if (Status != OrderStatus.Draft)
-            throw new InvalidOrderStateException(Status, OrderStatus.Draft);
+        {
+            throw new OrderNotEditableException(Id, Status);
+        }
 
         Status = OrderStatus.Submitted;
-        RaiseDomainEvent(new OrderSubmittedEvent(Id, Total));
+        RaiseDomainEvent(new OrderSubmittedEvent(Id));
     }
+}
+
+// Every error code is declared once, in the domain
+public static class BusinessRuleErrorCodes
+{
+    public static readonly ErrorCode OrderNotFound = ErrorCode.New("ORDER_NOT-FOUND");
+    public static readonly ErrorCode OrderNotEditable = ErrorCode.New("ORDER_NOT-EDITABLE");
+    public static readonly ErrorCode CustomerNotFound = ErrorCode.New("CUSTOMER_NOT-FOUND");
+    public static readonly ErrorCode PaymentRefused = ErrorCode.New("PAYMENT_REFUSED");
+}
+
+public sealed class OrderNotEditableException(Id<Order> orderId, OrderStatus status)
+    : BusinessException(BusinessRuleErrorCodes.OrderNotEditable, $"Order {orderId} is {status} and can no longer be modified.")
+{
+    public Id<Order> OrderId { get; } = orderId;
 }
 ```
 
 ### 4. Implement Application Layer
 
 ```csharp
-// Command handler with transactional UoW
-public class CreateOrderHandler(
+// The command references other aggregates by their external Code<T>
+public sealed record CreateOrderCommand(Code<Customer> CustomerCode);
+
+// Command handler: returns a ResponseWrapper, never lets a business failure escape as an exception
+internal sealed class CreateOrderHandler(
     IIdentityGenerator identityGenerator,
+    ICustomerRepository customerRepository,
     IOrderRepository orderRepository,
     IUnitOfWorkFactory uowFactory,
-    IDomainEventDispatcher eventDispatcher) 
-    : ICommandHandler<CreateOrderCommand, Id<Order>>
+    IDomainEventDispatcher eventDispatcher
+) : ICommandHandler<CreateOrderCommand, Code<Order>>
 {
-    public async Task<ResponseWrapper<Id<Order>>> Handle(
-        CreateOrderCommand request,
-        CancellationToken ct)
+    public async Task<ResponseWrapper<Code<Order>>> Handle(CreateOrderCommand request, CancellationToken ct)
     {
-        return await Result<CreateOrderCommand>.Success(request)
-            .Bind(ValidateCommand)
-            .BindAsync(async cmd =>
-            {
-                await using var uow = uowFactory.CreateTransactional();
-                
-                var order = Order.Create(identityGenerator, cmd.CustomerId, cmd.Items);
-                await orderRepository.AddAsync(order, ct);
-                
-                await uow.SaveChanges(ct);
-                await uow.Commit(ct);
-                
-                // Dispatch events after successful commit
-                await eventDispatcher.DispatchAsync(order, ct);
-                
-                return Result<Order>.Success(order);
-            })
-            .Map(order => order.Id)
-            .Match(
-                onSuccess: id => ResponseWrapper<Id<Order>>.Ok(id),
-                onFailure: error => ResponseWrapper<Id<Order>>.Fail(
-                    ErrorFactory.Create(error.Code, error.Message))
-            );
-    }
+        var customer = await customerRepository.GetByCodeAsync(request.CustomerCode, ct);
+        if (customer is null)
+        {
+            return ResponseWrapper.Fail<Code<Order>>(
+                ErrorFactory.Create(BusinessRuleErrorCodes.CustomerNotFound, $"Customer {request.CustomerCode} not found."));
+        }
 
-    private Result<CreateOrderCommand> ValidateCommand(CreateOrderCommand cmd)
-    {
-        // Validation logic
+        var order = Order.Create(
+            identityGenerator.CreateId<Order>(),   // internal Snowflake Id<T>
+            identityGenerator.CreateCode<Order>(), // external UUID v7 Code<T>
+            customer.Id);
+
+        await using var uow = uowFactory.CreateTransactional();
+        await orderRepository.AddAsync(order, ct);
+        await uow.SaveChanges(ct);
+        await uow.Commit(ct);
+
+        // After commit; no ct: event handlers get the application lifetime token
+        await eventDispatcher.Dispatch(order);
+
+        return ResponseWrapper.Ok(order.Code); // external contracts carry Code<T>, never Id<T>
     }
 }
 ```
@@ -204,8 +216,13 @@ builder.Services.AddAetherweaveData<ApplicationDbContext>(
     (dbBuilder, options) => dbBuilder.UseNpgsql(
         builder.Configuration.GetConnectionString(options.ConnectionStringName)));
 
-// Domain events
-builder.Services.AddDomainEventDispatcher(registry =>
+// Use case handlers
+builder.Services.AddScoped<ICommandHandler<CreateOrderCommand, Code<Order>>, CreateOrderHandler>();
+
+// Domain events: each handler is registered in DI and mapped to its event
+builder.Services.AddScoped<OrderSubmittedEmailHandler>();
+builder.Services.AddScoped<OrderSubmittedAnalyticsHandler>();
+builder.Services.AddAetherweaveDomainEventDispatcher(registry =>
 {
     registry.Configure<OrderSubmittedEvent>()
         .AddHandler<OrderSubmittedEmailHandler>()
@@ -236,79 +253,83 @@ Built-in health checks, profiling, error handling, and monitoring. Because uptim
 
 ## Real-World Example
 
-A complete order processing workflow demonstrating multiple packages working together:
+An order submission with payment, from the HTTP endpoint down to the domain events, using SharedKernel, Application,
+Data.Relational and Http together:
 
 ```csharp
-public class OrderService(
-    IIdentityGenerator identityGenerator,
+// Application: command + handler
+public sealed record SubmitOrderCommand(Code<Order> OrderCode);
+
+internal sealed class SubmitOrderHandler(
     IOrderRepository orderRepository,
     IPaymentServiceClient paymentClient,
     IUnitOfWorkFactory uowFactory,
     IDomainEventDispatcher eventDispatcher,
-    ILogger<OrderService> logger)
+    ILogger<SubmitOrderHandler> logger
+) : ICommandHandler<SubmitOrderCommand, Code<Order>>
 {
-    public async Task<Result<Id<Order>>> ProcessOrder(
-        CreateOrderCommand command,
-        CancellationToken ct)
+    public async Task<ResponseWrapper<Code<Order>>> Handle(SubmitOrderCommand request, CancellationToken ct)
     {
-        // Railway-oriented programming for clean error handling
-        return await Result<CreateOrderCommand>.Success(command)
-            .Bind(ValidateOrder)
-            .BindAsync(CheckInventory)
-            .BindAsync(async cmd =>
-            {
-                // Transactional unit of work
-                await using var uow = uowFactory.CreateTransactional();
-                
-                // Type-safe ID generation
-                var order = Order.Create(
-                    identityGenerator,
-                    cmd.CustomerId,
-                    cmd.Items);
-                
-                await orderRepository.AddAsync(order, ct);
-                await uow.SaveChanges(ct);
-                
-                // External HTTP call
-                var paymentResult = await paymentClient.ProcessPaymentAsync(
-                    new PaymentRequest(order.Id, order.Total),
-                    ct);
-                
-                if (!paymentResult.IsSuccess)
-                {
-                    await uow.Rollback(ct);
-                    return Result<Order>.Fail(
-                        new Error("PAYMENT_FAILED", "Payment processing failed"));
-                }
-                
-                order.MarkAsPaid();
-                await uow.SaveChanges(ct);
-                await uow.Commit(ct);
-                
-                // Domain events after successful commit
-                await eventDispatcher.DispatchAsync(order, ct);
-                
-                return Result<Order>.Success(order);
-            })
-            .Map(order => order.Id)
-            .OnSuccess(id => logger.LogInformation("Order {OrderId} processed", id))
-            .OnFailure(error => logger.LogError("Order processing failed: {Error}", error.Message));
-    }
+        // 1. Load the aggregate by its external code
+        var order = await orderRepository.GetByCodeAsync(request.OrderCode, ct);
+        if (order is null)
+        {
+            return ResponseWrapper.Fail<Code<Order>>(
+                ErrorFactory.Create(BusinessRuleErrorCodes.OrderNotFound, $"Order {request.OrderCode} not found."));
+        }
 
-    private Result<CreateOrderCommand> ValidateOrder(CreateOrderCommand cmd)
-    {
-        if (!cmd.Items.Any())
-            return Result<CreateOrderCommand>.Fail(
-                new Error("EMPTY_ORDER", "Order must contain items"));
-        
-        return Result<CreateOrderCommand>.Success(cmd);
-    }
+        // 2. Apply the business rule; a violation becomes a Failure, not an exception
+        try
+        {
+            order.Submit();
+        }
+        catch (BusinessException ex)
+        {
+            return ResponseWrapper.Fail<Code<Order>>(ErrorFactory.Create(ex));
+        }
 
-    private async Task<Result<CreateOrderCommand>> CheckInventory(
-        CreateOrderCommand cmd)
+        // 3. Persist inside an explicit transaction
+        await using var uow = uowFactory.CreateTransactional();
+        await orderRepository.UpdateStatusAsync(order, ct);
+        await uow.SaveChanges(ct);
+
+        // 4. External HTTP call (Zwedze.Aetherweave.Http): send the external Code, never the internal Id
+        var payment = await paymentClient.ProcessPaymentAsync(new PaymentRequest((string)order.Code), ct);
+        if (!payment.IsSuccess)
+        {
+            await uow.Rollback(ct);
+            logger.LogWarning("Payment refused for order {OrderCode}", order.Code);
+            return ResponseWrapper.Fail<Code<Order>>(
+                ErrorFactory.Create(BusinessRuleErrorCodes.PaymentRefused, $"Payment for order {order.Code} was refused."));
+        }
+
+        await uow.Commit(ct);
+
+        // 5. Side effects only after commit; no ct: event handlers get the application lifetime token
+        await eventDispatcher.Dispatch(order);
+
+        logger.LogInformation("Order {OrderCode} submitted", order.Code);
+        return ResponseWrapper.Ok(order.Code);
+    }
+}
+
+// Host: thin controller, maps the ResponseWrapper to HTTP
+[ApiController]
+[Route("api/v1/orders")]
+[Authorize]
+public class OrdersController(ICommandHandler<SubmitOrderCommand, Code<Order>> submitOrderHandler) : ControllerBase
+{
+    [HttpPost("{code}/submit")]
+    public async Task<IActionResult> Submit(string code, CancellationToken ct)
     {
-        // Inventory check logic
-        return Result<CreateOrderCommand>.Success(cmd);
+        var result = await submitOrderHandler.Handle(new SubmitOrderCommand(Code<Order>.From(code)), ct);
+
+        return result switch
+        {
+            ResponseWrapper<Code<Order>>.Success s => Ok((string)s.Value),
+            ResponseWrapper<Code<Order>>.Failure f => BadRequest(f.Error),
+            _ => StatusCode(500)
+        };
     }
 }
 ```

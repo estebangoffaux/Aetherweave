@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Zwedze.Aetherweave.Application.DomainEventHandlers;
 using Zwedze.Aetherweave.SharedKernel.DomainEvents;
@@ -8,26 +9,30 @@ namespace Zwedze.Aetherweave.Application.Extensions;
 
 public static class DomainEventDispatcherExtensions
 {
-    public static IServiceCollection AddAetherweaveDomainEventDispatcher(this IServiceCollection services, Action<DomainEventHandlerRegistry> configure)
+    extension(IServiceCollection services)
     {
-        var registry = new DomainEventHandlerRegistry();
-        configure(registry);
-
-        services.AddScoped<IDomainEventDispatcher>(sp =>
+        public IServiceCollection AddAetherweaveDomainEventDispatcher(Action<DomainEventHandlerRegistry> configure)
         {
-            var logger = sp.GetRequiredService<ILogger<DomainEventDispatcher>>();
-            var dispatcher = new DomainEventDispatcher(logger);
+            var registry = new DomainEventHandlerRegistry();
+            configure(registry);
 
-            // Bind registrations to DI at resolution time
-            foreach (var registration in registry.GetRegistrations())
+            services.AddScoped<IDomainEventDispatcher>(sp =>
             {
-                registration.Register(dispatcher, sp);
-            }
+                var logger = sp.GetRequiredService<ILogger<DomainEventDispatcher>>();
+                var hostApplicationLifetime = sp.GetRequiredService<IHostApplicationLifetime>();
+                var dispatcher = new DomainEventDispatcher(logger, hostApplicationLifetime);
 
-            return dispatcher;
-        });
+                // Bind registrations to DI at resolution time
+                foreach (var registration in registry.GetRegistrations())
+                {
+                    registration.Register(dispatcher, sp);
+                }
 
-        return services;
+                return dispatcher;
+            });
+
+            return services;
+        }
     }
 }
 

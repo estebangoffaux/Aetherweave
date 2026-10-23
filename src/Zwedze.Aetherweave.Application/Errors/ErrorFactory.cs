@@ -8,7 +8,7 @@ namespace Zwedze.Aetherweave.Application.Errors;
 public static class ErrorFactory
 {
     [UsedImplicitly]
-    public static Error Create(string code, string message)
+    public static Error Create(ErrorCode code, string message)
     {
         return new Error
         {
@@ -20,22 +20,21 @@ public static class ErrorFactory
     [UsedImplicitly]
     public static Error Create(Exception ex)
     {
-        if (ex is BusinessException bEx)
+        return ex switch
         {
-            return Create(bEx);
-        }
-
-        return new Error
-        {
-            Codes = [Error.UnmanagedErrorCode],
-            Message = ex.Message
+            BusinessException bzEx => Create(bzEx),
+            AggregateException aggEx => Create(aggEx),
+            _ => new Error
+            {
+                Codes = [ErrorCode.UnmanagedErrorCode],
+                Message = "An internal server error occurred. Please contact support."
+            }
         };
     }
 
-    [UsedImplicitly]
-    public static Error Create(AggregateException ex)
+    private static Error Create(AggregateException ex)
     {
-        List<string> errorCodes = new();
+        List<ErrorCode> errorCodes = new();
         StringBuilder messageBuilder = new();
 
         var businessExceptions = ex
@@ -44,17 +43,16 @@ public static class ErrorFactory
             .ToImmutableArray();
         if (businessExceptions.Length != 0)
         {
-            var a = ExtractCodesAndMessage(businessExceptions);
-            errorCodes.AddRange(a.ErrorCodes);
-            messageBuilder.Append(a.Message);
+            var (codes, message) = ExtractCodesAndMessage(businessExceptions);
+            errorCodes.AddRange(codes);
+            messageBuilder.Append(message);
         }
 
         var otherExceptions = ex.InnerExceptions.Except(businessExceptions).ToArray();
 
         if (otherExceptions.Length > 0)
         {
-            errorCodes.Add(Error.UnmanagedErrorCode);
-            messageBuilder.AppendJoin(Environment.NewLine, otherExceptions.Select(x => x.Message));
+            errorCodes.Add(ErrorCode.UnmanagedErrorCode);
         }
 
         return new Error
@@ -73,7 +71,7 @@ public static class ErrorFactory
         };
     }
 
-    private static (ImmutableArray<string> ErrorCodes, string Message) ExtractCodesAndMessage(ImmutableArray<BusinessException> exceptions)
+    private static (IReadOnlyCollection<ErrorCode> ErrorCodes, string Message) ExtractCodesAndMessage(IReadOnlyCollection<BusinessException> exceptions)
     {
         var errorCodes = exceptions.Select(x => x.ErrorCode).ToImmutableArray();
         var message = exceptions.Select(x => x.Message).Aggregate((x, y) => x + Environment.NewLine + y);
