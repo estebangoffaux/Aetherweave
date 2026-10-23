@@ -2,7 +2,7 @@
 
 /// <summary>
 ///     Handler for a specific domain event type
-///     Implement this interface and the source generator will automatically register it
+///     Register the implementation in DI and map it with AddAetherweaveDomainEventDispatcher
 /// </summary>
 /// <typeparam name="TEvent">The domain event type.</typeparam>
 public interface IDomainEventHandler<in TEvent> where TEvent : IDomainEvent

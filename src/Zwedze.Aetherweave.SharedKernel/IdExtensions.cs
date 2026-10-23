@@ -2,8 +2,8 @@ namespace Zwedze.Aetherweave.SharedKernel;
 
 public static class IdExtensions
 {
-    public static IReadOnlyCollection<long> ToLong<T>(this IEnumerable<Id<T>> ids)
+    public static Id<T> ToId<T>(this long value)
     {
-        return [.. ids.Select(x => (long)x)];
+        return Id<T>.From(value);
     }
 }

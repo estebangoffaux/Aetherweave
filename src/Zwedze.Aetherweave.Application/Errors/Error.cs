@@ -1,11 +1,9 @@
-using System.Collections.Immutable;
+using Zwedze.Aetherweave.SharedKernel;
 
 namespace Zwedze.Aetherweave.Application.Errors;
 
 public record Error
 {
-    public const string UnmanagedErrorCode = "__unmanaged_error";
-
-    public required ImmutableArray<string> Codes { get; init; }
+    public required IReadOnlyCollection<ErrorCode> Codes { get; init; }
     public required string Message { get; init; }
 }

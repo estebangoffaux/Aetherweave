@@ -8,7 +8,7 @@ namespace Zwedze.Aetherweave.Application.Errors;
 public static class ErrorFactory
 {
     [UsedImplicitly]
-    public static Error Create(string code, string message)
+    public static Error Create(ErrorCode code, string message)
     {
         return new Error
         {
@@ -27,7 +27,7 @@ public static class ErrorFactory
 
         return new Error
         {
-            Codes = [Error.UnmanagedErrorCode],
+            Codes = [ErrorCode.UnmanagedErrorCode],
             Message = ex.Message
         };
     }
@@ -35,7 +35,7 @@ public static class ErrorFactory
     [UsedImplicitly]
     public static Error Create(AggregateException ex)
     {
-        List<string> errorCodes = new();
+        List<ErrorCode> errorCodes = new();
         StringBuilder messageBuilder = new();
 
         var businessExceptions = ex
@@ -53,7 +53,7 @@ public static class ErrorFactory
 
         if (otherExceptions.Length > 0)
         {
-            errorCodes.Add(Error.UnmanagedErrorCode);
+            errorCodes.Add(ErrorCode.UnmanagedErrorCode);
             messageBuilder.AppendJoin(Environment.NewLine, otherExceptions.Select(x => x.Message));
         }
 
@@ -73,7 +73,7 @@ public static class ErrorFactory
         };
     }
 
-    private static (ImmutableArray<string> ErrorCodes, string Message) ExtractCodesAndMessage(ImmutableArray<BusinessException> exceptions)
+    private static (IReadOnlyCollection<ErrorCode> ErrorCodes, string Message) ExtractCodesAndMessage(IReadOnlyCollection<BusinessException> exceptions)
     {
         var errorCodes = exceptions.Select(x => x.ErrorCode).ToImmutableArray();
         var message = exceptions.Select(x => x.Message).Aggregate((x, y) => x + Environment.NewLine + y);
