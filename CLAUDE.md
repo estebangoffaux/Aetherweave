@@ -11,7 +11,7 @@ Zwedze.Aetherweave.sln
 ├── src/
 │   ├── Zwedze.Aetherweave.SharedKernel          # Domain primitives: Id<T>, Code<T>, AggregateRoot, DomainEvents
 │   ├── Zwedze.Aetherweave.Application           # CQRS interfaces, domain event dispatcher, ResponseWrapper, ErrorFactory
-│   ├── Zwedze.Aetherweave.Data                  # IUnitOfWork + IUnitOfWorkFactory abstractions only
+│   ├── Zwedze.Aetherweave.Data                  # Unit-of-work abstractions + their exceptions (no EF Core)
 │   ├── Zwedze.Aetherweave.Data.Relational       # EF Core UoW implementation, auto-config, health checks
 │   ├── Zwedze.Aetherweave.Core                  # Shared config binding + startup validation used by other packages
 │   ├── Zwedze.Aetherweave.Http                  # Typed HttpClient: profiling, content tracing, error handling (no auth)
@@ -68,7 +68,7 @@ Generators             (standalone, netstandard2.0; consuming project needs Shar
 - **`[UsedImplicitly]`** (JetBrains.Annotations, private asset): decorates public interfaces and factory methods to silence false-positive "unused" warnings from Roslyn/Rider.
 - **Error codes:** `SCREAMING_SNAKE_CASE` strings. The constant `Error.UnmanagedErrorCode = "__unmanaged_error"` is reserved for unhandled exceptions.
 - **Versioning:** managed by `GitVersion.yml` (semver from git tags). Never edit `<Version>` in `.csproj` files manually.
-- **Packaging:** all `src/` projects are `<IsPackable>true</IsPackable>`. Shared icon at repo root `Icon.png`; each project bundles its own `README.md` as the NuGet readme (except `Data`, `Analyzers`, `Generators` which don't yet declare `<PackageReadmeFile>`).
+- **Packaging:** all `src/` projects are `<IsPackable>true</IsPackable>`. Shared icon at repo root `Icon.png`; each project bundles its own `README.md` as the NuGet readme (except `Analyzers` and `Generators`, which don't yet declare `<PackageReadmeFile>`).
 - **Analyzers / Generators packaging:** `<DevelopmentDependency>true</DevelopmentDependency>`, `<IncludeBuildOutput>false</IncludeBuildOutput>`, assembly packed under `analyzers/dotnet/cs/`.
 
 ---
@@ -165,15 +165,32 @@ ErrorFactory.Create(anyException)               // uses UnmanagedErrorCode
 
 **README:** [`src/Zwedze.Aetherweave.Data/README.md`](src/Zwedze.Aetherweave.Data/README.md)
 
-Pure abstractions — no EF Core dependency.
+Pure abstractions — no EF Core dependency. Holds the unit-of-work contract **and its exceptions** (`Zwedze.Aetherweave.Data.Exceptions`), so application code never references `Data.Relational`.
 
 | Interface | Members |
 |---|---|
-| `IUnitOfWork` | `SaveChanges(CT)`, `Dispose()`, `DisposeAsync()` |
-| `ITransactionalUnitOfWork : IUnitOfWork` | adds `Commit(CT)`, `Rollback(CT)` |
+| `IUnitOfWork` | `SaveChanges(CancellationToken ct)`, `Dispose()`, `DisposeAsync()` |
+| `ITransactionalUnitOfWork : IUnitOfWork` | adds `Commit(CancellationToken ct)`, `Rollback(CancellationToken ct)` |
 | `IUnitOfWorkFactory` | `CreateTransactional()` → `ITransactionalUnitOfWork` |
 
-> `IUnitOfWorkFactory` exposes **only** `CreateTransactional()`. For read-only operations, inject the `DbContext` directly — no unit of work needed.
+> `IUnitOfWorkFactory` exposes **only** `CreateTransactional()` (the non-transactional unit of work was removed). Reads need no unit of work: go through a query service or repository, never the `DbContext` from application code.
+
+### Transactional UoW contract
+
+- Transaction is **lazy**: starts on the first `SaveChanges`; later calls reuse it.
+- `Commit` and `Rollback` are **terminal**: any later `SaveChanges`/`Commit`/`Rollback` throws `TransactionAlreadyCommittedException` / `TransactionAlreadyRolledBackException`. A disposed UoW throws `ObjectDisposedException`.
+- `Rollback` clears EF's change tracker. Use it only for an explicit business decision — never in a `catch` (disposal already rolls back).
+- Disposing while active rolls back, logs a warning and clears the change tracker. A failing automatic rollback is logged, **never thrown** (the original exception is preserved).
+- One UoW at a time per DI scope (they share the scoped `DbContext`).
+
+### Exceptions (`Zwedze.Aetherweave.Data.Exceptions`, base `AetherweaveDataException`)
+
+| Type | When |
+|---|---|
+| `NoTransactionException` | `Commit()` before any `SaveChanges()` |
+| `TransactionAlreadyCommittedException` | Any call after `Commit()` |
+| `TransactionAlreadyRolledBackException` | Any call after `Rollback()` |
+| `TransactionNotCommittedException` | Reserved, not thrown (uncommitted disposal logs a warning) |
 
 ---
 
@@ -208,19 +225,15 @@ Uses C# 14 `extension(IServiceCollection services)` syntax internally.
 
 ### Transactional UoW behaviour
 
-- Transaction is **lazy**: starts on the first call to `SaveChanges`.
-- Disposing without calling `Commit` logs a warning and rolls back automatically.
-- `Commit` throws `TransactionAlreadyCommittedException` if called twice.
-- `Commit` throws `NoTransactionException` if `SaveChanges` was never called.
+Implements the contract described under [Zwedze.Aetherweave.Data](#zwedzeaetherweavedata). `IUnitOfWorkFactory` is registered **scoped**, bound to the scoped `TDbContext`.
 
 ### Exceptions
 
 | Type | When |
 |---|---|
-| `ConfigurationNotFoundException` | Config section absent at startup |
-| `TransactionAlreadyCommittedException` | `Commit()` called more than once |
-| `NoTransactionException` | `Commit()` before any `SaveChanges()` |
-| `TransactionNotCommittedException` | (logged as warning on disposal) |
+| `ConfigurationNotFoundException` (`Data.Relational.Exceptions`) | Config section absent at startup |
+
+The unit-of-work exceptions live in `Zwedze.Aetherweave.Data.Exceptions`.
 
 ---
 

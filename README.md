@@ -47,7 +47,7 @@ Clean EF Core wrapper with Unit of Work pattern. Transactional integrity without
 
 **Key Features:**
 
-- Transactional and non-transactional unit of work support
+- Transactional unit of work with explicit commit and automatic rollback
 - Configuration-based DbContext setup from appsettings
 - Auto-starting transactions (no manual BeginTransaction needed)
 - Built-in health checks for production monitoring

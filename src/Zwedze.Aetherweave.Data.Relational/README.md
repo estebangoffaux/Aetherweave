@@ -296,27 +296,22 @@ services.AddAetherweaveData<ApplicationDbContext>(
 ```csharp
 public async Task ProcessPaymentAsync(PaymentCommand command, CancellationToken ct)
 {
+    // No try/catch: if anything throws, disposal rolls back, logs a warning, and the original exception propagates
     await using var uow = uowFactory.CreateTransactional();
-    
-    try
-    {
-        var payment = Payment.Create(command.Amount);
-        await paymentRepository.AddAsync(payment, ct);
-        await uow.SaveChanges(ct);
-        
-        var invoice = Invoice.For(payment);
-        await invoiceRepository.AddAsync(invoice, ct);
-        await uow.SaveChanges(ct);
-        
-        await uow.Commit(ct);
-    }
-    catch (Exception)
-    {
-        await uow.Rollback(ct);  // Optional - happens automatically on dispose
-        throw;
-    }
+
+    var payment = Payment.Create(command.Amount);
+    await paymentRepository.AddAsync(payment, ct);
+    await uow.SaveChanges(ct);
+
+    var invoice = Invoice.For(payment);
+    await invoiceRepository.AddAsync(invoice, ct);
+    await uow.SaveChanges(ct);
+
+    await uow.Commit(ct);
 }
 ```
+
+Do not call `Rollback` in a `catch` block: disposal already does it, and `Rollback` is terminal (a later call throws `TransactionAlreadyRolledBackException`). A failing automatic rollback is logged, never thrown, so the original exception is never hidden.
 
 ### Explicit Rollback
 
@@ -325,21 +320,23 @@ public async Task ProcessOrderAsync(ProcessOrderCommand command, CancellationTok
 {
     await using var uow = uowFactory.CreateTransactional();
 
-    var order = await orderRepository.GetByIdAsync(command.OrderId, ct);
+    var order = await orderRepository.GetByCodeAsync(command.OrderCode, ct);
 
     order!.Process();
     orderRepository.Update(order);
     await uow.SaveChanges(ct);
-    
+
     if (!await ValidateInventoryAsync(order, ct))
     {
-        await uow.Rollback(ct);  // Explicit rollback
-        throw new InsufficientInventoryException();
+        await uow.Rollback(ct);  // Explicit business decision; terminal, clears EF's change tracker
+        throw new InsufficientInventoryException(order.Id);
     }
-    
+
     await uow.Commit(ct);
 }
 ```
+
+`Rollback` also clears EF's change tracker, so the scoped `DbContext` no longer holds the discarded entities. The unit of work cannot be reused afterwards: create a new one.
 
 ## Integration with CQRS
 
@@ -577,11 +574,12 @@ public sealed class OrderService(IOrderRepository orderRepository, IUnitOfWorkFa
 
 ## Exceptions
 
-| Exception                              | When Thrown               | How to Handle                    |
-|----------------------------------------|---------------------------|----------------------------------|
-| `ConfigurationNotFoundException`       | Config section missing    | Check appsettings.json           |
-| `TransactionAlreadyCommittedException` | Commit called twice       | Don't call Commit multiple times |
-| `NoTransactionException`               | Commit before SaveChanges | Call SaveChanges first           |
+| Exception | Namespace | When Thrown | How to Handle |
+|---|---|---|---|
+| `ConfigurationNotFoundException` | `Zwedze.Aetherweave.Data.Relational.Exceptions` | Config section missing | Check appsettings.json |
+| `NoTransactionException` | `Zwedze.Aetherweave.Data.Exceptions` | `Commit` before any `SaveChanges` | Call `SaveChanges` first |
+| `TransactionAlreadyCommittedException` | `Zwedze.Aetherweave.Data.Exceptions` | Any call after `Commit` | Create a new unit of work |
+| `TransactionAlreadyRolledBackException` | `Zwedze.Aetherweave.Data.Exceptions` | Any call after `Rollback` | Create a new unit of work |
 
 ## Environment-Specific Configuration
 
