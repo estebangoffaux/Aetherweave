@@ -6,10 +6,11 @@
         <Nullable>enable</Nullable>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <LangVersion>latest</LangVersion>
-        <NoWarn>RS2008</NoWarn>
+        <NoWarn>$(NoWarn);RS2008</NoWarn>
 
         <IsRoslynAnalyzer>true</IsRoslynAnalyzer>
         <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeSymbols>false</IncludeSymbols>
         <DevelopmentDependency>true</DevelopmentDependency>
 
         <RepositoryUrl>https://github.com/estebangoffaux/Aetherweave</RepositoryUrl>

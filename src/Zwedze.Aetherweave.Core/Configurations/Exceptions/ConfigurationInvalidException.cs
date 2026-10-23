@@ -3,6 +3,8 @@ namespace Zwedze.Aetherweave.Core.Configurations.Exceptions;
 /// <summary>
 ///     Thrown by <see cref="ConfigurationLoader.GetOptions{T}" /> when a section cannot be bound or fails validation.
 /// </summary>
+/// <param name="sectionName">The section path that is invalid.</param>
+/// <param name="errors">Every validation error found in the section.</param>
 public sealed class ConfigurationInvalidException(string sectionName, IReadOnlyCollection<string> errors)
     : Exception(FormatMessage(sectionName, errors))
 {

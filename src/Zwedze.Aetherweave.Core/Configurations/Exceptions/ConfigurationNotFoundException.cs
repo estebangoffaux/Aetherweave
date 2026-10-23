@@ -3,6 +3,7 @@ namespace Zwedze.Aetherweave.Core.Configurations.Exceptions;
 /// <summary>
 ///     Thrown by <see cref="ConfigurationLoader" /> when the requested section does not exist in the configuration.
 /// </summary>
+/// <param name="sectionName">The section path that was not found.</param>
 public sealed class ConfigurationNotFoundException(string sectionName)
     : Exception(FormatMessage(sectionName))
 {
