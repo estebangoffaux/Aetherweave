@@ -4,7 +4,8 @@ namespace Zwedze.Aetherweave.SharedKernel;
 
 public readonly struct ErrorCode : IEquatable<ErrorCode>
 {
-    private readonly string _value;
+    public string Value { get; }
+
     public static readonly ErrorCode UnmanagedErrorCode = New("__unmanaged_error");
 
     [UsedImplicitly]
@@ -16,12 +17,12 @@ public readonly struct ErrorCode : IEquatable<ErrorCode>
     private ErrorCode(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        _value = value;
+        Value = value;
     }
 
     public static implicit operator string(ErrorCode id)
     {
-        return id._value;
+        return id.Value;
     }
 
     public static explicit operator ErrorCode(string value)
@@ -41,7 +42,7 @@ public readonly struct ErrorCode : IEquatable<ErrorCode>
 
     public bool Equals(ErrorCode other)
     {
-        return _value == other._value;
+        return Value == other.Value;
     }
 
     public override bool Equals(object? obj)
@@ -51,11 +52,11 @@ public readonly struct ErrorCode : IEquatable<ErrorCode>
 
     public override int GetHashCode()
     {
-        return _value.GetHashCode();
+        return Value.GetHashCode();
     }
 
     public override string ToString()
     {
-        return _value;
+        return Value;
     }
 }

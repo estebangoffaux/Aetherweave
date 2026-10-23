@@ -29,7 +29,7 @@ Namespace `Zwedze.Aetherweave.SharedKernel`:
 |---|---|---|
 | `Id<T>` | `readonly struct` | Internal identifier, wraps a `long`. Throws on `<= 0`. |
 | `Code<T>` | `readonly struct` | External identifier / natural key, wraps a `string`. Throws on null, empty or whitespace. |
-| `ErrorCode` | `readonly struct` | Machine-readable code for a business error, wraps a `string`. Throws on null, empty or whitespace. |
+| `ErrorCode` | `readonly struct` | Machine-readable code for a business error, wraps a `string` exposed as `Value`. Throws on null, empty or whitespace. Implicit to `string`. |
 | `AggregateRoot<T>` | abstract class | Base class for every aggregate root. Holds `Id<T>` + `Code<T>`, tracks domain events, equality by `Id`. |
 | `BusinessException` | abstract class | Base class for every domain rule violation. Carries an `ErrorCode`. |
 | `IdExtensions.ToId<T>(this long)` | extension | `123L.ToId<Order>()` → `Id<Order>` |
@@ -37,12 +37,12 @@ Namespace `Zwedze.Aetherweave.SharedKernel`:
 
 Namespace `Zwedze.Aetherweave.SharedKernel.DomainEvents`:
 
-| Type | Kind | Purpose |
-|---|---|---|
-| `IDomainEvent` | interface | `Guid Id`, `DateTimeOffset OccurredOn` |
+| Type | Kind | Purpose                                                                                                 |
+|---|---|---------------------------------------------------------------------------------------------------------|
+| `IDomainEvent` | interface | `Guid Id`, `DateTimeOffset OccurredOn`                                                                  |
 | `DomainEvent` | abstract record | Default implementation: `Id = Guid.NewGuid()`, `OccurredOn = DateTimeOffset.UtcNow`. Inherit from this. |
-| `IHasDomainEvents` | interface | `IReadOnlyCollection<IDomainEvent> PopDomainEvents()`: returns pending events **and clears them**. |
-| `IDomainEventHandler<TEvent>` | interface | `Task HandleAsync(TEvent @event, CancellationToken cancellationToken)`. Implemented in the application layer. |
+| `IHasDomainEvents` | interface | `IReadOnlyCollection<IDomainEvent> PopDomainEvents()`: returns pending events **and clears them**.      |
+| `IDomainEventHandler<TEvent>` | interface | `Task HandleAsync(TEvent @event, CancellationToken ct)`. Implemented in the application layer.          |
 
 ---
 
@@ -60,7 +60,7 @@ Follow these rules when writing code with this package.
 6. **Never use `default(Id<T>)`, `default(Code<T>)` or `default(ErrorCode)`.** `default` bypasses validation: an `Id` of `0`, or a `Code` wrapping `null` (whose `GetHashCode()` throws).
 7. In production code, get new values from `Zwedze.Aetherweave.IdentityGenerators`: `IIdentityGenerator.CreateId<T>()` (Snowflake `long`) and `CreateCode<T>()` (UUID v7 string). Do not invent your own generation.
 
-Conversion back to primitives is **implicit** (`long l = id;`, `string s = code;`), so no `.Value` property exists and none is needed. The opposite direction is explicit only. Type safety is therefore one-way: an `Id<T>` can be passed silently to a `long` parameter, but a `long` cannot become an `Id<T>` by accident.
+Conversion back to primitives is **implicit** (`long l = id;`, `string s = code;`), so `Id<T>` and `Code<T>` have no `.Value` property and none is needed (where the target type is `object`, such as `Ok(object?)` in a controller, cast explicitly: `(string)code`). The opposite direction is explicit only. Type safety is therefore one-way: an `Id<T>` can be passed silently to a `long` parameter, but a `long` cannot become an `Id<T>` by accident.
 
 `ToString()` returns the raw value (`"123"`, `"ORD-001"`), so identifiers are safe to interpolate in messages and logs.
 
@@ -226,14 +226,16 @@ Events are dispatched **after** the transaction is committed, so handlers only s
 
 ```csharp
 await using var uow = unitOfWorkFactory.CreateTransactional();
-var order = await orderRepository.GetByCode(command.OrderCode, ct);
+var order = await orderRepository.GetByCodeAsync(command.OrderCode, ct);
 order.Submit();
-await orderRepository.Update(order, ct);
+await orderRepository.UpdateStatusAsync(order, ct);
 await uow.SaveChanges(ct);
 await uow.Commit(ct);
 
-await eventDispatcher.DispatchAsync(order, ct); // calls order.PopDomainEvents()
+await eventDispatcher.Dispatch(order); // calls order.PopDomainEvents(); no ct on purpose
 ```
+
+The dispatcher runs every handler of every event and **logs** handler failures instead of rethrowing them, so `Dispatch` does not throw because of a handler failure. It takes no `CancellationToken`: handlers receive the application lifetime token, never the request token. See the `Zwedze.Aetherweave.Application` README for the full dispatch behaviour.
 
 Handlers implement `IDomainEventHandler<TEvent>` and live in the application layer:
 
@@ -241,9 +243,9 @@ Handlers implement `IDomainEventHandler<TEvent>` and live in the application lay
 public sealed class NotifyCustomerOnOrderSubmittedHandler(INotifier notifier)
     : IDomainEventHandler<OrderSubmittedEvent>
 {
-    public async Task HandleAsync(OrderSubmittedEvent @event, CancellationToken cancellationToken)
+    public async Task HandleAsync(OrderSubmittedEvent @event, CancellationToken ct)
     {
-        await notifier.OrderSubmitted(@event.OrderId, @event.Total, cancellationToken);
+        await notifier.OrderSubmitted(@event.OrderId, @event.Total, ct);
     }
 }
 ```
@@ -265,7 +267,7 @@ catch (BusinessException ex)
 }
 ```
 
-`ErrorFactory.Create(Exception)` maps any non-business exception to `ErrorCode.UnmanagedErrorCode`. `ErrorFactory.Create(AggregateException)` (for example from a failed dispatch) merges the codes of all inner business exceptions.
+`ErrorFactory.Create(Exception)` checks the runtime type: a `BusinessException` keeps its `ErrorCode` and message, an `AggregateException` merges the codes of its inner business exceptions, and any other exception becomes `ErrorCode.UnmanagedErrorCode` with a generic message (its own message is never exposed).
 
 ### Persistence
 
@@ -292,5 +294,5 @@ Aggregates are not EF Core entities. The infrastructure layer maps an EF record 
 | `ErrorCode.New("ORDER_EMPTY")` inline in an exception or handler | Declare it once in `BusinessRuleErrorCodes` and reference the field |
 | `ORDER_001` (sequential number) or `ORDER_ALREADY_SUBMITTED` (underscores between words) | `ORDER_ALREADY-SUBMITTED` |
 | `BusinessRuleErrorCodes.Order_Already_Submitted` (underscores in member name) | `BusinessRuleErrorCodes.OrderAlreadySubmitted` |
-| Calling `PopDomainEvents()` before commit | Let `IDomainEventDispatcher.DispatchAsync` do it after commit |
+| Calling `PopDomainEvents()` before commit | Let `IDomainEventDispatcher.Dispatch` do it after commit |
 | `default(Id<Order>)` as a placeholder | Use `Id<Order>?` and `null` |

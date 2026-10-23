@@ -20,20 +20,19 @@ public static class ErrorFactory
     [UsedImplicitly]
     public static Error Create(Exception ex)
     {
-        if (ex is BusinessException bEx)
+        return ex switch
         {
-            return Create(bEx);
-        }
-
-        return new Error
-        {
-            Codes = [ErrorCode.UnmanagedErrorCode],
-            Message = ex.Message
+            BusinessException bzEx => Create(bzEx),
+            AggregateException aggEx => Create(aggEx),
+            _ => new Error
+            {
+                Codes = [ErrorCode.UnmanagedErrorCode],
+                Message = "An internal server error occurred. Please contact support."
+            }
         };
     }
 
-    [UsedImplicitly]
-    public static Error Create(AggregateException ex)
+    private static Error Create(AggregateException ex)
     {
         List<ErrorCode> errorCodes = new();
         StringBuilder messageBuilder = new();
@@ -44,9 +43,9 @@ public static class ErrorFactory
             .ToImmutableArray();
         if (businessExceptions.Length != 0)
         {
-            var a = ExtractCodesAndMessage(businessExceptions);
-            errorCodes.AddRange(a.ErrorCodes);
-            messageBuilder.Append(a.Message);
+            var (codes, message) = ExtractCodesAndMessage(businessExceptions);
+            errorCodes.AddRange(codes);
+            messageBuilder.Append(message);
         }
 
         var otherExceptions = ex.InnerExceptions.Except(businessExceptions).ToArray();
@@ -54,7 +53,6 @@ public static class ErrorFactory
         if (otherExceptions.Length > 0)
         {
             errorCodes.Add(ErrorCode.UnmanagedErrorCode);
-            messageBuilder.AppendJoin(Environment.NewLine, otherExceptions.Select(x => x.Message));
         }
 
         return new Error

@@ -346,38 +346,37 @@ public async Task ProcessOrderAsync(ProcessOrderCommand command, CancellationTok
 ### Command Handler
 
 ```csharp
-public sealed class CreateOrderHandler(
+internal sealed class CreateOrderHandler(
+    IIdentityGenerator identityGenerator,
     IUnitOfWorkFactory uowFactory,
     IOrderRepository orderRepository,
-    IDomainEventDispatcher eventDispatcher) : ICommandHandler<CreateOrderCommand, Guid>
+    IDomainEventDispatcher eventDispatcher) : ICommandHandler<CreateOrderCommand, Code<Order>>
 {
-    public async Task<ResponseWrapper<Guid>> Handle(
-        CreateOrderCommand request,
-        CancellationToken cancellationToken)
+    public async Task<ResponseWrapper<Code<Order>>> Handle(CreateOrderCommand request, CancellationToken ct)
     {
-        await using var uow = uowFactory.CreateTransactional();
-        
+        Order order;
         try
         {
-            var order = Order.Create(
-                Id<Order>.From(request.Id),
-                Code<Order>.From(request.OrderNumber),
-                request.CustomerId,
-                request.Items);
-
-            await orderRepository.AddAsync(order, cancellationToken);
-            await uow.SaveChanges(cancellationToken);
-            await uow.Commit(cancellationToken);
-            
-            // Dispatch domain events after successful commit
-            await eventDispatcher.DispatchAsync(order, cancellationToken);
-            
-            return ResponseWrapper.Ok(order.Id);
+            order = Order.Create(
+                identityGenerator.CreateId<Order>(),
+                identityGenerator.CreateCode<Order>(),
+                request.CustomerId);
         }
         catch (BusinessException ex)
         {
-            return ResponseWrapper.Fail<Guid>(ErrorFactory.Create(ex));
+            return ResponseWrapper.Fail<Code<Order>>(ErrorFactory.Create(ex));
         }
+
+        await using var uow = uowFactory.CreateTransactional();
+        await orderRepository.AddAsync(order, ct);
+        await uow.SaveChanges(ct);
+        await uow.Commit(ct);
+
+        // Dispatch domain events after successful commit (no ct: handlers get the application lifetime token)
+        await eventDispatcher.Dispatch(order);
+
+        // External contracts use Code<T>, never Id<T>
+        return ResponseWrapper.Ok(order.Code);
     }
 }
 ```
@@ -385,21 +384,20 @@ public sealed class CreateOrderHandler(
 ### Query Handler (No Transaction Needed)
 
 ```csharp
-public sealed class GetOrderByIdHandler(IOrderRepository orderRepository) 
-    : IQueryHandler<GetOrderByIdQuery, OrderDto>
+internal sealed class GetOrderHandler(IOrderRepository orderRepository)
+    : IQueryHandler<GetOrderQuery, OrderDto>
 {
-    public async Task<ResponseWrapper<OrderDto>> Handle(
-        GetOrderByIdQuery request,
-        CancellationToken cancellationToken)
+    public async Task<ResponseWrapper<OrderDto>> Handle(GetOrderQuery request, CancellationToken ct)
     {
-        var order = await orderRepository.GetByIdAsync(request.OrderId, cancellationToken);
-            
+        // Queries receive the external Code<T>, never the internal Id<T>
+        var order = await orderRepository.GetByCodeAsync(request.OrderCode, ct);
+
         if (order is null)
         {
-            var error = ErrorFactory.Create("ORDER_NOT_FOUND", "Order not found");
+            var error = ErrorFactory.Create(BusinessRuleErrorCodes.OrderNotFound, $"Order {request.OrderCode} not found.");
             return ResponseWrapper.Fail<OrderDto>(error);
         }
-        
+
         return ResponseWrapper.Ok(OrderDto.FromDomain(order));
     }
 }
@@ -502,7 +500,7 @@ public sealed class OrderService(IOrderRepository orderRepository, IUnitOfWorkFa
 5. **Dispatch domain events AFTER commit:**
    ```csharp
    await uow.Commit(ct);
-   await eventDispatcher.DispatchAsync(aggregate, ct);
+   await eventDispatcher.Dispatch(aggregate);
    ```
 
 6. **Enable detailed errors only in development:**
@@ -569,12 +567,12 @@ public sealed class OrderService(IOrderRepository orderRepository, IUnitOfWorkFa
 6. **Don't dispatch events before commit:**
    ```csharp
    // Bad - events dispatched before data is persisted!
-   await eventDispatcher.DispatchAsync(order, ct);
+   await eventDispatcher.Dispatch(order);
    await uow.Commit(ct);
    
    // Good
    await uow.Commit(ct);
-   await eventDispatcher.DispatchAsync(order, ct);
+   await eventDispatcher.Dispatch(order);
    ```
 
 ## Exceptions

@@ -145,10 +145,10 @@ services.AddAetherweaveDomainEventDispatcher(registry =>
 
 // Dispatch (always after Commit)
 await uow.Commit(ct);
-await eventDispatcher.DispatchAsync(aggregate, ct);
+await eventDispatcher.Dispatch(aggregate);
 ```
 
-`IDomainEventDispatcher` is **scoped**. All registered handlers run; if any throw, an `AggregateException` is raised after all handlers complete.
+`IDomainEventDispatcher` is **scoped**. All registered handlers run; handler failures are grouped per event into an `AggregateException` that is **logged, not rethrown**, and dispatch continues with the next event. `Dispatch` takes no `CancellationToken` by design: handlers receive `IHostApplicationLifetime.ApplicationStopped` (requires a host), never the request token; on shutdown, `Dispatch` throws `OperationCanceledException`.
 
 ### Error + ErrorFactory
 

@@ -7,5 +7,5 @@
 /// <typeparam name="TEvent">The domain event type.</typeparam>
 public interface IDomainEventHandler<in TEvent> where TEvent : IDomainEvent
 {
-    Task HandleAsync(TEvent @event, CancellationToken cancellationToken);
+    Task HandleAsync(TEvent @event, CancellationToken ct);
 }
